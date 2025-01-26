@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package models;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "AlgorithmicTraderDistributed/internal/models/proto/generated";
+
+message OHLCV {
+  double open = 1;
+  double high = 2;
+  double low = 3;
+  double close = 4;
+  double volume = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}
+
+message Trade {
+  double price = 1;
+  double quantity = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message BookTicker {
+  double bid_price = 2;
+  double bid_quantity = 3;
+  double ask_price = 4;
+  double ask_quantity = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}
+
+message OrderBookEntry {
+  double price = 1;
+  double quantity = 2;
+}
+
+message OrderBookUpdate {
+  repeated OrderBookEntry ask_updates = 1;
+  repeated OrderBookEntry bid_updates = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message OrderBookSnapshot {
+  repeated OrderBookEntry asks = 1;
+  repeated OrderBookEntry bids = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+message SerializedJSON {
+  string json = 1;
+}
+
+message MarketData {
+  oneof payload {
+      OHLCV ohlcv = 1;
+      Trade trade = 2;
+      BookTicker book_ticker = 3;
+      OrderBookUpdate order_book_update = 4;
+      OrderBookSnapshot order_book_snapshot = 5;
+      SerializedJSON serialized_json = 6;
+    }
+}

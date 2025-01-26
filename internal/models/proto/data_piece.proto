@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package models;
+
+import "google/protobuf/timestamp.proto";
+import "market_data.proto";
+
+option go_package = "AlgorithmicTraderDistributed/internal/models/proto/generated";
+
+
+message MarketDataPacket {
+  string current_uuid = 1;
+  repeated string uuid_history = 2;
+  repeated google.protobuf.Timestamp uuid_history_timestamps = 3;
+  MarketData payload = 4;
+}

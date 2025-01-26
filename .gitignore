@@ -1,5 +1,3 @@
 .idea
-data_service/bin
-data_service/temp
-strategy_service/bin
-portfolio_service/bin
+bin
+_deprecated
