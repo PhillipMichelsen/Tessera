@@ -6,6 +6,18 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "AlgorithmicTraderDistributed/internal/models/proto/generated";
 
+message MarketData {
+  string uuid = 1;
+  oneof payload {
+      OHLCV ohlcv = 2;
+      Trade trade = 3;
+      BookTicker book_ticker = 4;
+      OrderBookUpdate order_book_update = 5;
+      OrderBookSnapshot order_book_snapshot = 6;
+      SerializedJSON serialized_json = 7;
+  }
+}
+
 message OHLCV {
   double open = 1;
   double high = 2;
@@ -48,15 +60,4 @@ message OrderBookSnapshot {
 
 message SerializedJSON {
   string json = 1;
-}
-
-message MarketData {
-  oneof payload {
-      OHLCV ohlcv = 1;
-      Trade trade = 2;
-      BookTicker book_ticker = 3;
-      OrderBookUpdate order_book_update = 4;
-      OrderBookSnapshot order_book_snapshot = 5;
-      SerializedJSON serialized_json = 6;
-    }
 }

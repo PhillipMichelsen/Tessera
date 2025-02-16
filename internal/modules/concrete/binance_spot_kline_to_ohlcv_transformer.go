@@ -82,26 +82,25 @@ func (b *BinanceSpotKlineToOHLCVTransformer) runWorker(workerChannels modules.Wo
 		select {
 		case <-workerChannels.StopSignal:
 			return
-		case packet := <-workerChannels.InputChannel:
-			marketDataPacket, ok := packet.(models.MarketDataPacket)
+		case message := <-workerChannels.InputChannel:
+			packet, ok := message.(models.Packet)
 			if !ok {
-				panic(fmt.Sprintf("Received unexpected packet type: %T", packet))
+				panic(fmt.Sprintf("Received type was not a Packet, recieved: %T", packet))
 			}
-			workerChannels.OutputChannel <- b.handlePacket(marketDataPacket)
+			workerChannels.OutputChannel <- b.handlePacket(packet)
 		}
 	}
 }
 
-func (b *BinanceSpotKlineToOHLCVTransformer) handlePacket(packet models.MarketDataPacket) models.MarketDataPacket {
-	timeNow := time.Now()
-	defer func() {
-		// Print the time taken to process the packet
-		fmt.Printf("Processed packet with Packet UUID %s at %s\n", packet.CurrentUUID, time.Now().Sub(timeNow))
-	}()
-
-	serializedJSONPayload, ok := packet.Payload.(models.SerializedJSON)
+func (b *BinanceSpotKlineToOHLCVTransformer) handlePacket(packet models.Packet) models.Packet {
+	marketData, ok := packet.Payload.(models.MarketData)
 	if !ok {
-		panic(fmt.Sprintf("'Payload in packet with Packet UUID %s is not of type SerializedJSON.'", packet.CurrentUUID))
+		panic(fmt.Sprintf("Packet sent by %s has a payload which is not of type MarketDataPayload", packet.SourceUUID))
+	}
+
+	serializedJSONPayload, ok := marketData.Data.(models.SerializedJSON)
+	if !ok {
+		panic(fmt.Sprintf("'MarketData Payload with UUID %s from Packet sent by %s is not of type SerializedJSON.'", marketData.UUID, packet.SourceUUID))
 	}
 
 	// Extract and validate required fields from the JSON payload
@@ -133,10 +132,15 @@ func (b *BinanceSpotKlineToOHLCVTransformer) handlePacket(packet models.MarketDa
 		panic(fmt.Sprintf("'No output mapping found for packet with Packet UUID %s'", packet.CurrentUUID))
 	}
 
-	return models.MarketDataPacket{
-		CurrentUUID:           newCurrentUUID,
-		UUIDHistory:           append(packet.UUIDHistory, packet.CurrentUUID),
-		UUIDHistoryTimestamps: append(packet.UUIDHistoryTimestamps, time.Now()),
-		Payload:               ohlcv,
+	return models.Packet{
+		SourceUUID:      b.GetModuleUUID(),
+		DestinationUUID: []uuid.UUID{newCurrentUUID},
+		Payload: models.MarketDataPayload{
+			CurrentUUID:           newCurrentUUID,
+			UUIDHistory:           append(packet.UUIDHistory, packet.CurrentUUID),
+			UUIDHistoryTimestamps: append(packet.UUIDHistoryTimestamps, timeNow),
+			Data:                  ohlcv,
+		},
 	}
+
 }
