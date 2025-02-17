@@ -6,6 +6,8 @@ import (
 	"sync"
 )
 
+// TODO: Rework with new instance module liaison system when it is implemented. Remove the worker channels, they are to be implemented in the concrete modules.
+
 type Module interface {
 	Initialize()
 	Start()

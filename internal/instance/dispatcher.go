@@ -2,7 +2,6 @@ package instance
 
 import (
 	"AlgorithmicTraderDistributed/internal/models"
-	"AlgorithmicTraderDistributed/internal/modules"
 	"github.com/google/uuid"
 	"log"
 )
@@ -22,16 +21,12 @@ func NewDispatcher(bufferSize int) *Dispatcher {
 	}
 }
 
-func (d *Dispatcher) AddMapping(module modules.Module) {
-	log.Printf("[INFO] *Dispatcher* | Adding mapping for module: %s \n", module.GetModuleUUID())
-	d.channelMappings[module.GetModuleUUID()] = module.GetInputChannel()
-	log.Printf("[INFO] *Dispatcher* | Mapping added for module: %s \n", module.GetModuleUUID())
+func (d *Dispatcher) AddMapping(uuid uuid.UUID, channel chan<- interface{}) {
+	d.channelMappings[uuid] = channel
 }
 
-func (d *Dispatcher) RemoveMapping(module modules.Module) {
-	log.Printf("[INFO] *Dispatcher* | Removing mapping for module: %s \n", module.GetModuleUUID())
-	delete(d.channelMappings, module.GetModuleUUID())
-	log.Printf("[INFO] *Dispatcher* | Mapping removed for module: %s \n", module.GetModuleUUID())
+func (d *Dispatcher) RemoveMapping(uuid uuid.UUID) {
+	delete(d.channelMappings, uuid)
 }
 
 func (d *Dispatcher) Dispatch(packet models.Packet) {
