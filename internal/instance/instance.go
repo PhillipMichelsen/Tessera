@@ -1,10 +1,12 @@
 package instance
 
 import (
-	"AlgorithmicTraderDistributed/internal/models"
+	"AlgorithmicTraderDistributed/internal/api"
+	"AlgorithmicTraderDistributed/internal/common/models"
 	"AlgorithmicTraderDistributed/internal/modules"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Instance struct {
@@ -18,10 +20,9 @@ type Instance struct {
 }
 
 type ModuleInfo struct {
-	Module        modules.Module
-	ModuleLiaison *ModuleLiaison
-	CreationTime  time.Time
-	CreatedBy     uuid.UUID
+	ModuleAPI    api.ModuleAPI
+	CreationTime time.Time
+	CreatedBy    uuid.UUID
 }
 
 func NewInstance() *Instance {
@@ -29,6 +30,7 @@ func NewInstance() *Instance {
 		instanceUUID:     uuid.New(),
 		dispatcher:       NewDispatcher(100),
 		controlInterface: NewControlInterface(),
+		moduleFactoryFunction: modules.CreateModule,
 	}
 }
 
@@ -47,14 +49,12 @@ func (i *Instance) DispatchPacket(packet models.Packet) {
 }
 
 func (i *Instance) NewModule(moduleName string, moduleUUID uuid.UUID) {
-	moduleLiaison := NewModuleLiaison()
-	module := i.moduleFactoryFunction(moduleName, moduleUUID, moduleLiaison)
+	module := i.moduleFactoryFunction(moduleName, moduleUUID)
 
 	i.modules[module.GetModuleUUID()] = ModuleInfo{
-		Module:        module,
-		ModuleLiaison: moduleLiaison,
-		CreationTime:  time.Now(),
-		CreatedBy:     i.instanceUUID,
+		ModuleAPI: module,
+		CreationTime:   time.Now(),
+		CreatedBy:      i.instanceUUID,
 	}
 }
 

@@ -1,9 +1,10 @@
 package instance
 
 import (
-	"AlgorithmicTraderDistributed/internal/models"
-	"github.com/google/uuid"
+	"AlgorithmicTraderDistributed/internal/common/models"
 	"log"
+
+	"github.com/google/uuid"
 )
 
 type Dispatcher struct {
