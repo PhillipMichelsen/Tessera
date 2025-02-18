@@ -3,13 +3,15 @@ package api
 import (
 	"AlgorithmicTraderDistributed/internal/common/constants"
 	"AlgorithmicTraderDistributed/internal/common/models"
-	"AlgorithmicTraderDistributed/internal/modules"
-
 	"github.com/google/uuid"
 )
 
 type ModuleAPI interface {
-	modules.Module
+	Initialize(map[string]interface{}) error
+	Start() error
+	Stop() error
+	GetStatus() constants.ModuleStatus
+	GetModuleUUID() uuid.UUID
 }
 
 type InstanceAPI interface {
