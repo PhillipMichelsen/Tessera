@@ -7,9 +7,9 @@ import (
 )
 
 type ModuleAPI interface {
-	Initialize(map[string]interface{}) error
-	Start() error
-	Stop() error
+	Initialize(map[string]interface{})
+	Start()
+	Stop()
 	GetStatus() constants.ModuleStatus
 	GetModuleUUID() uuid.UUID
 }

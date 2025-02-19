@@ -15,7 +15,7 @@ type Instance struct {
 	dispatcher       *Dispatcher
 	controlInterface *ControlInterface
 
-	moduleFactoryFunction func(string, uuid.UUID) modules.Module // FIXME: Need to satisfy interfaces and such
+	moduleFactoryFunction func(string, uuid.UUID) *modules.Module
 	modules               map[uuid.UUID]ModuleInfo
 }
 
@@ -30,7 +30,7 @@ func NewInstance() *Instance {
 		instanceUUID:          uuid.New(),
 		dispatcher:            NewDispatcher(100),
 		controlInterface:      NewControlInterface(), // TODO: Add control interface
-		moduleFactoryFunction: modules.CreateModule,
+		moduleFactoryFunction: modules.InstantiateModule,
 	}
 }
 
@@ -48,7 +48,7 @@ func (i *Instance) DispatchPacket(packet models.Packet) {
 	i.dispatcher.Dispatch(packet)
 }
 
-func (i *Instance) NewModule(moduleName string, moduleUUID uuid.UUID) {
+func (i *Instance) CreateModule(moduleName string, moduleUUID uuid.UUID) {
 	module := i.moduleFactoryFunction(moduleName, moduleUUID)
 
 	i.modules[module.GetModuleUUID()] = ModuleInfo{
