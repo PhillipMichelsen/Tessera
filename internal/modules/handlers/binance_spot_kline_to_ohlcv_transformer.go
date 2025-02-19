@@ -135,14 +135,14 @@ func (b *BinanceSpotKlineToOHLCVTransformer) handlePacket(packet models.Packet) 
 	}
 
 	// Get destination UUID
-	destinationUUID, exists := b.inputOutputUUIDMappings[packet.DestinationUUID]
+	destinationUUID, exists := b.inputOutputUUIDMappings[packet.DestinationModuleUUID]
 	if !exists {
-		panic(fmt.Sprintf("no mapping for UUID: %s", packet.DestinationUUID))
+		panic(fmt.Sprintf("no mapping for UUID: %s", packet.DestinationModuleUUID))
 	}
 
 	return models.Packet{
-		SourceUUID:      b.moduleUUID,
-		DestinationUUID: destinationUUID,
+		SourceModuleUUID:      b.moduleUUID,
+		DestinationModuleUUID: destinationUUID,
 		Payload: models.MarketData{
 			UUID: destinationUUID,
 			Data: ohlcv,

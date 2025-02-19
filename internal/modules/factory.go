@@ -1,8 +1,11 @@
 package modules
 
-import "github.com/google/uuid"
+import (
+	"AlgorithmicTraderDistributed/internal/api"
+	"github.com/google/uuid"
+)
 
-func InstantiateModule(moduleName string, moduleUUID uuid.UUID) *Module {
+func InstantiateModule(moduleName string, moduleUUID uuid.UUID, instanceAPI api.InstanceAPIInternal) *Module {
 	switch moduleName {
 	case "":
 		return &Module{}

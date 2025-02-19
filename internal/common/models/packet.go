@@ -5,7 +5,7 @@ import (
 )
 
 type Packet struct {
-	SourceUUID      uuid.UUID   `json:"S"`
-	DestinationUUID uuid.UUID   `json:"D"`
-	Payload         interface{} `json:"P"`
+	SourceModuleUUID      uuid.UUID   `json:"S"`
+	DestinationModuleUUID uuid.UUID   `json:"D"`
+	Payload               interface{} `json:"P"`
 }
