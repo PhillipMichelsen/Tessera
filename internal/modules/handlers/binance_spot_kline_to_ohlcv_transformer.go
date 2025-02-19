@@ -4,9 +4,10 @@ import (
 	"AlgorithmicTraderDistributed/internal/api"
 	"AlgorithmicTraderDistributed/internal/common/models"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
-	"time"
 )
 
 type BinanceSpotKlineToOHLCVTransformerConfig struct {
@@ -63,7 +64,7 @@ func (b *BinanceSpotKlineToOHLCVTransformer) Initialize(rawConfig map[string]int
 	return nil
 }
 
-func (b *BinanceSpotKlineToOHLCVTransformer) Run(instanceAPI api.InstanceAPI, runtimeErrorReceiver func(error)) {
+func (b *BinanceSpotKlineToOHLCVTransformer) Run(instanceAPI api.InstanceAPIInternal, runtimeErrorReceiver func(error)) {
 	inputChannel := make(chan interface{})
 	instanceAPI.RegisterModuleInputChannel(inputChannel)
 	defer instanceAPI.DeregisterModuleInputChannel()

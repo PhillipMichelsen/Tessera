@@ -3,14 +3,15 @@ package modules
 import (
 	"AlgorithmicTraderDistributed/internal/api"
 	"AlgorithmicTraderDistributed/internal/common/constants"
-	"github.com/google/uuid"
 	"log"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 type ModuleHandler interface {
 	Initialize(rawConfig map[string]interface{}) error
-	Run(instanceAPI api.InstanceAPI, runtimeErrorReceiver func(error))
+	Run(instanceAPI api.InstanceAPIInternal, runtimeErrorReceiver func(error))
 	Stop() error
 }
 
@@ -19,13 +20,13 @@ type Module struct {
 	status     constants.ModuleStatus
 	handler    ModuleHandler
 
-	instanceAPI       api.InstanceAPI
+	instanceAPI       api.InstanceAPIInternal
 	stopSignalChannel chan struct{}
 	workerWaitGroup   sync.WaitGroup
 	mu                sync.Mutex
 }
 
-func NewModule(moduleUUID uuid.UUID, worker ModuleHandler, instanceAPI api.InstanceAPI) *Module {
+func NewModule(moduleUUID uuid.UUID, worker ModuleHandler, instanceAPI api.InstanceAPIInternal) *Module {
 	return &Module{
 		moduleUUID:  moduleUUID,
 		status:      constants.Uninitialized,
