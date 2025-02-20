@@ -59,6 +59,13 @@ func (i *Instance) CreateModule(moduleName string, moduleUUID uuid.UUID) {
 	}
 }
 
+func (i *Instance) AddModule(module *modules.Module) {
+	i.modules[module.GetModuleUUID()] = &ModuleRecord{
+		ModuleAPI:          module,
+		ModuleInputChannel: nil,
+	}
+}
+
 // RemoveModule stops and removes the module.
 func (i *Instance) RemoveModule(moduleUUID uuid.UUID) {
 	i.UnregisterModuleInputChannel(moduleUUID)
