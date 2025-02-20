@@ -2,8 +2,6 @@ package main
 
 import (
 	"AlgorithimcTraderDistributed/data_service/internal/service/manager"
-	"AlgorithmicTraderDistributed/data_service/internal/service/component/concrete"
-	"github.com/google/uuid"
 	"log"
 	"os"
 	"os/signal"

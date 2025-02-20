@@ -2,28 +2,25 @@ package instance
 
 import (
 	"AlgorithmicTraderDistributed/internal/api"
-	"AlgorithmicTraderDistributed/internal/common/constants"
-	"AlgorithmicTraderDistributed/internal/common/models"
+	"AlgorithmicTraderDistributed/internal/constants"
+	"AlgorithmicTraderDistributed/internal/instance/controllers"
+	"AlgorithmicTraderDistributed/internal/models"
 	"AlgorithmicTraderDistributed/internal/modules"
+	"AlgorithmicTraderDistributed/internal/modules/cores"
+	"fmt"
 	"github.com/google/uuid"
-	"log"
+	"github.com/rs/zerolog/log"
 	"os"
 )
 
 type Instance struct {
 	instanceUUID uuid.UUID
-	controllers  []Controller
+	controllers  []controllers.Controller
 
-	moduleFactoryFunction func(string, uuid.UUID, api.InstanceAPIInternal) *modules.Module
-	modules               map[uuid.UUID]*ModuleRecord
+	modules map[uuid.UUID]*ModuleRecord
 
 	packetDispatchQueue      chan *models.Packet
 	packetDispatchStopSignal chan struct{}
-}
-
-type Controller interface {
-	Start()
-	Stop()
 }
 
 type ModuleRecord struct {
@@ -35,31 +32,23 @@ type ModuleRecord struct {
 func NewInstance() *Instance {
 	instance := &Instance{
 		instanceUUID:             uuid.New(),
-		moduleFactoryFunction:    modules.InstantiateModule,
 		modules:                  make(map[uuid.UUID]*ModuleRecord),
 		packetDispatchQueue:      make(chan *models.Packet, 100),
 		packetDispatchStopSignal: make(chan struct{}),
 	}
-
-	// Start internal message processing
-	go instance.packetDispatchWorker()
-
 	return instance
 }
 
 // EXTERNAL API METHODS
 
 // CreateModule creates a new module and registers it for communication.
-func (i *Instance) CreateModule(moduleName string, moduleUUID uuid.UUID) {
-	module := i.moduleFactoryFunction(moduleName, moduleUUID, i)
+func (i *Instance) CreateModule(coreName string, moduleUUID uuid.UUID) {
 
-	i.modules[module.GetModuleUUID()] = &ModuleRecord{
-		ModuleAPI:          module,
-		ModuleInputChannel: nil,
-	}
-}
+	module := modules.NewModule(
+		moduleUUID,
+		cores.InstantiateCoreByName(coreName, i),
+	)
 
-func (i *Instance) AddModule(module *modules.Module) {
 	i.modules[module.GetModuleUUID()] = &ModuleRecord{
 		ModuleAPI:          module,
 		ModuleInputChannel: nil,
@@ -79,11 +68,19 @@ func (i *Instance) InitializeModule(moduleUUID uuid.UUID, config map[string]inte
 
 // StartModule starts the module.
 func (i *Instance) StartModule(moduleUUID uuid.UUID) {
+	if i.modules[moduleUUID].ModuleAPI.GetStatus() == constants.Started {
+		log.Warn().Str("instance_uuid", i.instanceUUID.String()).Msg(fmt.Sprintf("Cannot start module [%s] as it is already started.", moduleUUID))
+		return
+	}
 	i.modules[moduleUUID].ModuleAPI.Start()
 }
 
 // StopModule stops the module.
 func (i *Instance) StopModule(moduleUUID uuid.UUID) {
+	if i.modules[moduleUUID].ModuleAPI.GetStatus() != constants.Started {
+		log.Warn().Str("instance_uuid", i.instanceUUID.String()).Msg(fmt.Sprintf("Cannot stop module [%s] as it is not started.", moduleUUID))
+		return
+	}
 	i.modules[moduleUUID].ModuleAPI.Stop()
 }
 
@@ -94,10 +91,20 @@ func (i *Instance) Halt() {
 
 // Shutdown gracefully stops all modules and shuts down the instance.
 func (i *Instance) Shutdown() {
+	log.Info().Msg("Shutting down instance...")
+
 	for _, module := range i.modules {
-		module.ModuleAPI.Stop()
+		if module.ModuleAPI.GetStatus() == constants.Started {
+			i.StopModule(module.ModuleAPI.GetModuleUUID())
+		}
 	}
 	close(i.packetDispatchStopSignal)
+
+	for _, controller := range i.controllers {
+		controller.Stop()
+	}
+
+	log.Info().Msg("Instance shut down successfully!")
 	os.Exit(0)
 }
 
@@ -113,6 +120,11 @@ func (i *Instance) GetModules() []uuid.UUID {
 // GetModuleStatus returns the module's status.
 func (i *Instance) GetModuleStatus(moduleUUID uuid.UUID) constants.ModuleStatus {
 	return i.modules[moduleUUID].ModuleAPI.GetStatus()
+}
+
+// GetInstanceUUID returns the instance's UUID.
+func (i *Instance) GetInstanceUUID() uuid.UUID {
+	return i.instanceUUID
 }
 
 // INTERNAL API METHODS
@@ -132,6 +144,23 @@ func (i *Instance) UnregisterModuleInputChannel(moduleUUID uuid.UUID) {
 	i.modules[moduleUUID].ModuleInputChannel = nil
 }
 
+// NON-API METHODS
+
+func (i *Instance) Start() {
+	for _, controller := range i.controllers {
+		controller.Start()
+	}
+
+	go i.packetDispatchWorker()
+}
+
+func (i *Instance) AddController(controller controllers.Controller) {
+	i.controllers = append(i.controllers, controller)
+}
+
+// INTERNAL METHODS
+
+// packetDispatchWorker listens for packets and dispatches them to their respective modules. To be run as a goroutine.
 func (i *Instance) packetDispatchWorker() {
 	for {
 		select {

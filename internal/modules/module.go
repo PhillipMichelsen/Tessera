@@ -1,111 +1,101 @@
 package modules
 
 import (
-	"AlgorithmicTraderDistributed/internal/api"
-	"AlgorithmicTraderDistributed/internal/common/constants"
-	"log"
-	"sync"
-
+	"AlgorithmicTraderDistributed/internal/constants"
+	"AlgorithmicTraderDistributed/internal/modules/cores"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
+	"sync"
 )
-
-type ModuleHandler interface {
-	Initialize(rawConfig map[string]interface{}) error
-	Run(instanceAPI api.InstanceAPIInternal, runtimeErrorReceiver func(error))
-	Stop() error
-}
 
 type Module struct {
 	moduleUUID uuid.UUID
 	status     constants.ModuleStatus
-	handler    ModuleHandler
+	core       cores.Core
 
-	instanceAPI       api.InstanceAPIInternal
 	stopSignalChannel chan struct{}
-	workerWaitGroup   sync.WaitGroup
+	coreWaitGroup     sync.WaitGroup
 	mu                sync.Mutex
 }
 
-func NewModule(moduleUUID uuid.UUID, worker ModuleHandler, instanceAPI api.InstanceAPIInternal) *Module {
+func NewModule(moduleUUID uuid.UUID, core cores.Core) *Module {
 	return &Module{
-		moduleUUID:  moduleUUID,
-		status:      constants.Uninitialized,
-		handler:     worker,
-		instanceAPI: instanceAPI,
-		mu:          sync.Mutex{},
+		moduleUUID: moduleUUID,
+		status:     constants.Uninitialized,
+		core:       core,
+		mu:         sync.Mutex{},
 	}
 }
 
 func (m *Module) Initialize(config map[string]interface{}) {
 	m.setStatus(constants.Initializing)
-	log.Printf("[INFO] Module [%s] | State: %s | Loading configuration...\n", m.moduleUUID, m.GetStatus())
+	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Initializing module...")
 
-	defer m.recoverFromPanic()
-	err := m.handler.Initialize(config)
+	err := m.core.Initialize(config)
 
 	if err != nil {
 		m.setStatus(constants.Error)
-		log.Printf("[ERROR] Module [%s] | State: %s | Error: %v\n", m.moduleUUID, m.GetStatus(), err)
+		log.Error().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Err(err).Msg("Error initializing module")
+
 		return
 	}
 
 	m.setStatus(constants.Initialized)
-	log.Printf("[INFO] Module [%s] | State: %s | Configuration loaded.\n", m.moduleUUID, m.GetStatus())
+	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Initialized module successfully!")
 }
 
 func (m *Module) Start() {
 	if m.status != constants.Initialized {
-		log.Printf("[WARNING] Module [%s] | State: %s | Module not initialized, cannot start.\n", m.moduleUUID, m.GetStatus())
+		log.Warn().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Cannot start module that is not initialized")
 		return
 	}
 
 	m.setStatus(constants.Starting)
-	log.Printf("[INFO] Module [%s] | State: %s | Starting...\n", m.moduleUUID, m.GetStatus())
+	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Starting module...")
 
 	m.stopSignalChannel = make(chan struct{})
-	m.workerWaitGroup.Add(1)
+	m.coreWaitGroup.Add(1)
 
 	go func() {
-		defer m.recoverFromPanic()
-		defer m.workerWaitGroup.Done()
-		m.handler.Run(m.instanceAPI, m.receiveRuntimeError)
+		defer m.coreWaitGroup.Done()
+		m.core.Run(m.receiveRuntimeError)
 	}()
 
 	m.setStatus(constants.Started)
-	log.Printf("[INFO] Module [%s] | State: %s | Started successfully.\n", m.moduleUUID, m.GetStatus())
+	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Started module successfully!")
 }
 
 func (m *Module) Stop() {
 	if m.status != constants.Started {
-		log.Printf("[WARNING] Module [%s] | State: %s | Module not running, cannot stop.\n", m.moduleUUID, m.GetStatus())
+		log.Warn().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Cannot stop module that is not started")
 		return
 	}
 
 	m.setStatus(constants.Stopping)
-	log.Printf("[INFO] Module [%s] | State: %s | Stopping...\n", m.moduleUUID, m.GetStatus())
+	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Stopping module...")
 
 	close(m.stopSignalChannel)
-	m.workerWaitGroup.Wait()
-	err := m.handler.Stop()
+	m.coreWaitGroup.Wait()
+	err := m.core.Stop()
 
 	if err != nil {
 		m.setStatus(constants.Error)
-		log.Printf("[ERROR] Module [%s] | State: %s | Error: %v\n", m.moduleUUID, m.GetStatus(), err)
+		log.Error().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Err(err).Msg("Error stopping core")
 		return
 	}
 
 	m.setStatus(constants.Stopped)
-	log.Printf("[INFO] Module [%s] | State: %s | Stopped successfully.\n", m.moduleUUID, m.GetStatus())
+	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Stopped module successfully!")
+}
+
+func (m *Module) GetModuleUUID() uuid.UUID {
+	return m.moduleUUID
 }
 
 func (m *Module) GetStatus() constants.ModuleStatus {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.status
-}
-
-func (m *Module) GetModuleUUID() uuid.UUID {
-	return m.moduleUUID
 }
 
 func (m *Module) setStatus(newStatus constants.ModuleStatus) {
@@ -117,23 +107,16 @@ func (m *Module) setStatus(newStatus constants.ModuleStatus) {
 func (m *Module) receiveRuntimeError(err error) {
 	if err != nil {
 		m.setStatus(constants.Error)
-		log.Printf("[ERROR] Module [%s] | State: %s | Error: %v\n", m.moduleUUID, m.GetStatus(), err)
-		if m.stopSignalChannel != nil {
-			close(m.stopSignalChannel)
-		}
-		m.workerWaitGroup.Wait()
-		log.Printf("[ERROR] Module [%s] | State: %s | Module stopped with error.\n", m.moduleUUID, m.GetStatus())
-	}
-}
+		log.Error().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Err(err).Msg("Runtime error received from Core. Will stop module.")
 
-func (m *Module) recoverFromPanic() {
-	if r := recover(); r != nil {
-		m.setStatus(constants.Error)
-		log.Printf("[CRITICAL] Module [%s] | State: %s | Panic recovery triggered: %v\n", m.moduleUUID, m.GetStatus(), r)
+		m.setStatus(constants.Stopping)
+		log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Stopping module...")
+
 		if m.stopSignalChannel != nil {
 			close(m.stopSignalChannel)
 		}
-		m.workerWaitGroup.Wait()
-		log.Printf("[CRITICAL] Module [%s] | State: %s | Panic recovered, module stopped with error.\n", m.moduleUUID, m.GetStatus())
+		m.coreWaitGroup.Wait()
+		m.setStatus(constants.Stopped)
+		log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Stopped module successfully!")
 	}
 }

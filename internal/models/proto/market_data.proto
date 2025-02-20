@@ -9,12 +9,12 @@ option go_package = "AlgorithmicTraderDistributed/internal/models/proto/generate
 message MarketData {
   string uuid = 1;
   oneof payload {
-      OHLCV ohlcv = 2;
-      Trade trade = 3;
-      BookTicker book_ticker = 4;
-      OrderBookUpdate order_book_update = 5;
-      OrderBookSnapshot order_book_snapshot = 6;
-      SerializedJSON serialized_json = 7;
+    OHLCV ohlcv = 2;
+    Trade trade = 3;
+    BookTicker book_ticker = 4;
+    OrderBookUpdate order_book_update = 5;
+    OrderBookSnapshot order_book_snapshot = 6;
+    SerializedJSON serialized_json = 7;
   }
 }
 

@@ -2,9 +2,8 @@ package main
 
 import (
 	"AlgorithmicTraderDistributed/internal/instance"
-	"AlgorithmicTraderDistributed/internal/instance/controllers"
-	"AlgorithmicTraderDistributed/internal/modules"
-	"log"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,20 +12,21 @@ import (
 )
 
 func main() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"})
+
 	inst := instance.NewInstance()
+	//inst.AddController(instance.InstantiateController("tui", inst))
 
-	module := modules.NewModule(uuid.Must(uuid.NewUUID()), nil, inst)
-	inst.AddModule(module)
+	inst.CreateModule("TestCore", uuid.Must(uuid.NewRandom()))
 
-	tuiController := controllers.NewTUIController(inst)
-	go tuiController.Start()
+	inst.Start()
+	inst.InitializeModule(inst.GetModules()[0], map[string]interface{}{})
+	inst.StartModule(inst.GetModules()[0])
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
-	log.Println("[INFO] *Main* | Starting instance...")
 	<-signals
-	log.Println("[INFO] *Main* | Received signal, shutting down...")
 	inst.Shutdown()
-	log.Println("[INFO] *Main* | Shutdown complete.")
 }

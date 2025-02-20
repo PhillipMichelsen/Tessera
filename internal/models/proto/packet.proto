@@ -10,6 +10,6 @@ message Packet {
   string source_uuid = 1;
   string destination_uuid = 2;
   oneof payload {
-      MarketData market_data = 3;
+    MarketData market_data = 3;
   }
 }
