@@ -1,9 +1,9 @@
-package concrete
+package misc
 
 import (
 	"AlgorithmicTraderDistributed/internal/api"
 	"fmt"
-	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -11,12 +11,16 @@ import (
 
 type TestCore struct {
 	stopSignalChannel chan struct{}
+	waitGroup         sync.WaitGroup
 
 	instanceServicesAPI api.InstanceServicesAPI
+	coreErrorReceiver   func(error)
 }
 
-func (t *TestCore) Initialize(rawConfig map[string]interface{}, instanceServicesAPI api.InstanceServicesAPI) error {
+func (t *TestCore) Initialize(rawConfig map[string]interface{}, coreErrorReceiver func(error), instanceServicesAPI api.InstanceServicesAPI) error {
 	t.instanceServicesAPI = instanceServicesAPI
+	t.waitGroup = sync.WaitGroup{}
+	t.coreErrorReceiver = coreErrorReceiver
 
 	return nil
 }
@@ -27,9 +31,9 @@ func (t *TestCore) Run() {
 	go t.runSomeWorker()
 }
 
-func (t *TestCore) Stop() error {
-	t.stopSignalChannel <- struct{}{}
-	return nil
+func (t *TestCore) Stop() {
+	close(t.stopSignalChannel)
+	t.waitGroup.Wait()
 }
 
 func (t *TestCore) GetCoreType() string {
@@ -38,27 +42,27 @@ func (t *TestCore) GetCoreType() string {
 
 func (t *TestCore) runSomeWorker() {
 	defer func() {
+		t.waitGroup.Done()
 		if r := recover(); r != nil {
-			var err error
-			if recErr, ok := r.(error); ok {
-				err = recErr
-			} else {
-				err = fmt.Errorf("%v", r)
-			}
-			log.Error().Err(err).Msg("TestCore panic recovered")
+			err := fmt.Errorf("%v", r)
+			t.coreErrorReceiver(err)
 		}
 	}()
-	log.Warn().Msg("-- Test Core will call panic randomly --")
 
+	t.waitGroup.Add(1)
+	log.Warn().Msg("-- Test Core will call panic after 5 seconds --")
+
+	counter := 1
 	for {
 		select {
 		case <-t.stopSignalChannel:
 			return
 		default:
-			if rand.Intn(3) == 0 {
+			if counter == 5 {
 				panic("TestCore panic!")
 			} else {
-				log.Trace().Msg("TestCore running...")
+				log.Trace().Msg(fmt.Sprintf("TestCore running, seconds: %d", counter))
+				counter++
 			}
 			time.Sleep(1 * time.Second)
 		}

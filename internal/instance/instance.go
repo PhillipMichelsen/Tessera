@@ -23,7 +23,7 @@ type Instance struct {
 }
 
 type ModuleRecord struct {
-	ModuleControlAPI  api.ModuleControlAPI
+	ModuleControlAPI   api.ModuleControlAPI
 	ModuleInputChannel chan *models.Packet
 }
 
@@ -49,7 +49,7 @@ func (i *Instance) CreateModule(coreName string, moduleUUID uuid.UUID) {
 	)
 
 	i.modules[module.GetModuleUUID()] = &ModuleRecord{
-		ModuleControlAPI:  module,
+		ModuleControlAPI:   module,
 		ModuleInputChannel: nil,
 	}
 }
@@ -67,7 +67,7 @@ func (i *Instance) InitializeModule(moduleUUID uuid.UUID, config map[string]inte
 
 // StartModule starts the module.
 func (i *Instance) StartModule(moduleUUID uuid.UUID) {
-	if i.modules[moduleUUID].ModuleControlAPI.GetStatus() == constants.Started {
+	if i.modules[moduleUUID].ModuleControlAPI.GetStatus() == constants.StartedModuleStatus {
 		log.Warn().Str("instance_uuid", i.instanceUUID.String()).Msg(fmt.Sprintf("Cannot start module [%s] as it is already started.", moduleUUID))
 		return
 	}
@@ -76,7 +76,7 @@ func (i *Instance) StartModule(moduleUUID uuid.UUID) {
 
 // StopModule stops the module.
 func (i *Instance) StopModule(moduleUUID uuid.UUID) {
-	if i.modules[moduleUUID].ModuleControlAPI.GetStatus() != constants.Started {
+	if i.modules[moduleUUID].ModuleControlAPI.GetStatus() != constants.StartedModuleStatus {
 		log.Warn().Str("instance_uuid", i.instanceUUID.String()).Msg(fmt.Sprintf("Cannot stop module [%s] as it is not started.", moduleUUID))
 		return
 	}
@@ -85,7 +85,8 @@ func (i *Instance) StopModule(moduleUUID uuid.UUID) {
 
 // Halt ungracefully shuts down the instance.
 func (i *Instance) Halt() {
-	os.Exit(1)
+	log.Error().Msg("INSTANCE HALT REQUESTED... SHUTTING DOWN UNGRACEFULLY!")
+	os.Exit(444)
 }
 
 // Shutdown gracefully stops all modules and shuts down the instance.
@@ -93,7 +94,7 @@ func (i *Instance) Shutdown() {
 	log.Info().Msg("Shutting down instance...")
 
 	for _, module := range i.modules {
-		if module.ModuleControlAPI.GetStatus() == constants.Started {
+		if module.ModuleControlAPI.GetStatus() == constants.StartedModuleStatus {
 			i.StopModule(module.ModuleControlAPI.GetModuleUUID())
 		}
 	}
@@ -143,8 +144,9 @@ func (i *Instance) UnregisterModuleInputChannel(moduleUUID uuid.UUID) {
 	i.modules[moduleUUID].ModuleInputChannel = nil
 }
 
-func (i *Instance) HandleModuleRuntimeError(moduleUUID uuid.UUID, err error) {
-	log.Error().Str("instance_uuid", i.instanceUUID.String()).Err(err).Msg(fmt.Sprintf("Runtime error received by module [%s]", moduleUUID))
+func (i *Instance) ReceiveModuleError(moduleUUID uuid.UUID, err error) {
+	log.Error().Str("instance_uuid", i.instanceUUID.String()).Err(err).Msg(fmt.Sprintf("ErrorModuleStatus received by module [%s]", moduleUUID))
+	i.Shutdown() // TODO: Implement comprehensive module error handling.
 }
 
 // NON-API METHODS

@@ -3,12 +3,12 @@ package constants
 type ModuleStatus string
 
 const (
-	Uninitialized ModuleStatus = "Uninitialized"
-	Initializing  ModuleStatus = "Initializing"
-	Initialized   ModuleStatus = "Initialized"
-	Starting      ModuleStatus = "Starting"
-	Started       ModuleStatus = "Started"
-	Stopping      ModuleStatus = "Stopping"
-	Stopped       ModuleStatus = "Stopped"
-	Error         ModuleStatus = "Error"
+	UninitializedModuleStatus ModuleStatus = "UninitializedModuleStatus"
+	InitializingModuleStatus  ModuleStatus = "InitializingModuleStatus"
+	InitializedModuleStatus   ModuleStatus = "InitializedModuleStatus"
+	StartingModuleStatus      ModuleStatus = "StartingModuleStatus"
+	StartedModuleStatus       ModuleStatus = "StartedModuleStatus"
+	StoppingModuleStatus      ModuleStatus = "StoppingModuleStatus"
+	StoppedModuleStatus       ModuleStatus = "StoppedModuleStatus"
+	ErrorModuleStatus         ModuleStatus = "ErrorModuleStatus"
 )
