@@ -26,6 +26,7 @@ type InstanceAPIInternal interface {
 	DispatchPacket(packet *models.Packet)
 	RegisterModuleInputChannel(moduleUUID uuid.UUID, inputChannel chan *models.Packet)
 	UnregisterModuleInputChannel(moduleUUID uuid.UUID)
+	ReceiveRuntimeErrorAlert(moduleUUID uuid.UUID, err error)
 }
 
 type ModuleAPI interface {

@@ -3,19 +3,18 @@ package instance
 import (
 	"AlgorithmicTraderDistributed/internal/api"
 	"AlgorithmicTraderDistributed/internal/constants"
-	"AlgorithmicTraderDistributed/internal/instance/controllers"
 	"AlgorithmicTraderDistributed/internal/models"
 	"AlgorithmicTraderDistributed/internal/modules"
-	"AlgorithmicTraderDistributed/internal/modules/cores"
 	"fmt"
+	"os"
+
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"os"
 )
 
 type Instance struct {
 	instanceUUID uuid.UUID
-	controllers  []controllers.Controller
+	controllers  []Controller
 
 	modules map[uuid.UUID]*ModuleRecord
 
@@ -46,7 +45,7 @@ func (i *Instance) CreateModule(coreName string, moduleUUID uuid.UUID) {
 
 	module := modules.NewModule(
 		moduleUUID,
-		cores.InstantiateCoreByName(coreName, i),
+		modules.InstantiateCoreByName(coreName),
 	)
 
 	i.modules[module.GetModuleUUID()] = &ModuleRecord{
@@ -144,6 +143,10 @@ func (i *Instance) UnregisterModuleInputChannel(moduleUUID uuid.UUID) {
 	i.modules[moduleUUID].ModuleInputChannel = nil
 }
 
+func (i *Instance) ReceiveRuntimeErrorAlert(moduleUUID uuid.UUID, err error) {
+	log.Error().Str("instance_uuid", i.instanceUUID.String()).Err(err).Msg(fmt.Sprintf("Runtime error received by module [%s]", moduleUUID))
+}
+
 // NON-API METHODS
 
 func (i *Instance) Start() {
@@ -154,7 +157,7 @@ func (i *Instance) Start() {
 	go i.packetDispatchWorker()
 }
 
-func (i *Instance) AddController(controller controllers.Controller) {
+func (i *Instance) AddController(controller Controller) {
 	i.controllers = append(i.controllers, controller)
 }
 

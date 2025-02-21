@@ -1,24 +1,27 @@
 package modules
 
 import (
+	"AlgorithmicTraderDistributed/internal/api"
 	"AlgorithmicTraderDistributed/internal/constants"
-	"AlgorithmicTraderDistributed/internal/modules/cores"
+	"sync"
+
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"sync"
 )
 
 type Module struct {
 	moduleUUID uuid.UUID
 	status     constants.ModuleStatus
-	core       cores.Core
+	core       Core
+
+	instanceAPIInternal api.InstanceAPIInternal
 
 	stopSignalChannel chan struct{}
 	coreWaitGroup     sync.WaitGroup
 	mu                sync.Mutex
 }
 
-func NewModule(moduleUUID uuid.UUID, core cores.Core) *Module {
+func NewModule(moduleUUID uuid.UUID, core Core) *Module {
 	return &Module{
 		moduleUUID: moduleUUID,
 		status:     constants.Uninitialized,
@@ -58,7 +61,7 @@ func (m *Module) Start() {
 
 	go func() {
 		defer m.coreWaitGroup.Done()
-		m.core.Run(m.receiveRuntimeError)
+		m.core.Run()
 	}()
 
 	m.setStatus(constants.Started)
@@ -102,21 +105,4 @@ func (m *Module) setStatus(newStatus constants.ModuleStatus) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.status = newStatus
-}
-
-func (m *Module) receiveRuntimeError(err error) {
-	if err != nil {
-		m.setStatus(constants.Error)
-		log.Error().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Err(err).Msg("Runtime error received from Core. Will stop module.")
-
-		m.setStatus(constants.Stopping)
-		log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Stopping module...")
-
-		if m.stopSignalChannel != nil {
-			close(m.stopSignalChannel)
-		}
-		m.coreWaitGroup.Wait()
-		m.setStatus(constants.Stopped)
-		log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Stopped module successfully!")
-	}
 }

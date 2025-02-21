@@ -1,10 +1,11 @@
-package misc
+package concrete
 
 import (
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"math/rand"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 type TestCore struct {
@@ -15,10 +16,10 @@ func (t *TestCore) Initialize(rawConfig map[string]interface{}) error {
 	return nil
 }
 
-func (t *TestCore) Run(runtimeErrorReceiver func(error)) {
+func (t *TestCore) Run() {
 	t.stopSignalChannel = make(chan struct{})
 
-	go t.runSomeWorker(runtimeErrorReceiver)
+	go t.runSomeWorker()
 }
 
 func (t *TestCore) Stop() error {
@@ -30,7 +31,7 @@ func (t *TestCore) GetType() string {
 	return "TestCore"
 }
 
-func (t *TestCore) runSomeWorker(runtimeErrorReceiver func(error)) {
+func (t *TestCore) runSomeWorker() {
 	defer func() {
 		if r := recover(); r != nil {
 			var err error
@@ -39,7 +40,7 @@ func (t *TestCore) runSomeWorker(runtimeErrorReceiver func(error)) {
 			} else {
 				err = fmt.Errorf("%v", r)
 			}
-			runtimeErrorReceiver(err)
+			log.Error().Err(err).Msg("TestCore panic recovered")
 		}
 	}()
 	log.Warn().Msg("THE TEST CORE HAS BEEN RUN AND WILL CALL PANIC, STRICTLY FOR TESTING")
@@ -50,7 +51,7 @@ func (t *TestCore) runSomeWorker(runtimeErrorReceiver func(error)) {
 			return
 		default:
 			if rand.Intn(3) == 0 {
-				//panic("TestCore panic!!!")
+				panic("TestCore panic!!!")
 			} else {
 				log.Trace().Msg("TestCore running!!!")
 			}
