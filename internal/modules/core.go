@@ -1,20 +1,21 @@
 package modules
 
 import (
-	cores "AlgorithmicTraderDistributed/internal/concrete/cores"
+	"AlgorithmicTraderDistributed/internal/api"
+	cores_concrete "AlgorithmicTraderDistributed/internal/modules/cores"
 )
 
 type Core interface {
-	Initialize(rawConfig map[string]interface{}) error
+	Initialize(rawConfig map[string]interface{}, instanceServicesAPI api.InstanceServicesAPI) error
 	Run()
 	Stop() error
-	GetType() string
+	GetCoreType() string
 }
 
 func InstantiateCoreByName(coreName string) Core {
 	switch coreName {
 	case "TestCore":
-		return &cores.TestCore{}
+		return &cores_concrete.TestCore{}
 	}
 
 	return nil

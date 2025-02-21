@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
@@ -14,7 +15,7 @@ type Module struct {
 	status     constants.ModuleStatus
 	core       Core
 
-	instanceAPIInternal api.InstanceAPIInternal
+	instanceServicesAPI api.InstanceServicesAPI
 
 	stopSignalChannel chan struct{}
 	coreWaitGroup     sync.WaitGroup
@@ -30,31 +31,33 @@ func NewModule(moduleUUID uuid.UUID, core Core) *Module {
 	}
 }
 
-func (m *Module) Initialize(config map[string]interface{}) {
+func (m *Module) Initialize(config map[string]interface{}, instanceServicesAPI api.InstanceServicesAPI) {
+	m.instanceServicesAPI = instanceServicesAPI
 	m.setStatus(constants.Initializing)
-	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Initializing module...")
+	m.sendLog(zerolog.DebugLevel, "Initializing module...", nil)
 
-	err := m.core.Initialize(config)
+	err := m.core.Initialize(config, m.instanceServicesAPI)
 
 	if err != nil {
 		m.setStatus(constants.Error)
-		log.Error().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Err(err).Msg("Error initializing module")
+		m.sendLog(zerolog.ErrorLevel, "Error initializing core", err)
 
 		return
 	}
 
 	m.setStatus(constants.Initialized)
-	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Initialized module successfully!")
+	m.sendLog(zerolog.DebugLevel, "Initialized module successfully!", nil)
 }
 
 func (m *Module) Start() {
 	if m.status != constants.Initialized {
-		log.Warn().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Cannot start module that is not initialized")
+		m.sendLog(zerolog.WarnLevel, "Cannot start module that is not initialized", nil)
 		return
 	}
 
 	m.setStatus(constants.Starting)
-	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Starting module...")
+	m.sendLog(zerolog.DebugLevel, "Starting module...", nil)
+	
 
 	m.stopSignalChannel = make(chan struct{})
 	m.coreWaitGroup.Add(1)
@@ -65,17 +68,17 @@ func (m *Module) Start() {
 	}()
 
 	m.setStatus(constants.Started)
-	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Started module successfully!")
+	m.sendLog(zerolog.DebugLevel, "Started module successfully!", nil)
 }
 
 func (m *Module) Stop() {
 	if m.status != constants.Started {
-		log.Warn().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Cannot stop module that is not started")
+		m.sendLog(zerolog.WarnLevel, "Cannot stop module that is not started", nil)
 		return
 	}
 
 	m.setStatus(constants.Stopping)
-	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Stopping module...")
+	m.sendLog(zerolog.DebugLevel, "Stopping module...", nil)
 
 	close(m.stopSignalChannel)
 	m.coreWaitGroup.Wait()
@@ -83,12 +86,12 @@ func (m *Module) Stop() {
 
 	if err != nil {
 		m.setStatus(constants.Error)
-		log.Error().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Err(err).Msg("Error stopping core")
+		m.sendLog(zerolog.ErrorLevel, "Error stopping core", err)
 		return
 	}
 
 	m.setStatus(constants.Stopped)
-	log.Debug().Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetType()).Str("module_status", string(m.status)).Msg("Stopped module successfully!")
+	m.sendLog(zerolog.DebugLevel, "Stopped module successfully!", nil)
 }
 
 func (m *Module) GetModuleUUID() uuid.UUID {
@@ -105,4 +108,8 @@ func (m *Module) setStatus(newStatus constants.ModuleStatus) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.status = newStatus
+}
+
+func (m *Module) sendLog(level zerolog.Level, message string, err error) {
+	log.WithLevel(level).Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetCoreType()).Str("module_status", string(m.status)).Err(err).Msg(message)
 }

@@ -3,10 +3,11 @@ package api
 import (
 	"AlgorithmicTraderDistributed/internal/constants"
 	"AlgorithmicTraderDistributed/internal/models"
+
 	"github.com/google/uuid"
 )
 
-type InstanceAPIExternal interface {
+type InstanceControlAPI interface {
 	CreateModule(moduleName string, moduleUUID uuid.UUID)
 	RemoveModule(moduleUUID uuid.UUID)
 	InitializeModule(moduleUUID uuid.UUID, config map[string]interface{})
@@ -22,15 +23,15 @@ type InstanceAPIExternal interface {
 	GetInstanceUUID() uuid.UUID
 }
 
-type InstanceAPIInternal interface {
+type InstanceServicesAPI interface {
 	DispatchPacket(packet *models.Packet)
 	RegisterModuleInputChannel(moduleUUID uuid.UUID, inputChannel chan *models.Packet)
 	UnregisterModuleInputChannel(moduleUUID uuid.UUID)
-	ReceiveRuntimeErrorAlert(moduleUUID uuid.UUID, err error)
+	HandleModuleRuntimeError(moduleUUID uuid.UUID, err error)
 }
 
-type ModuleAPI interface {
-	Initialize(map[string]interface{})
+type ModuleControlAPI interface {
+	Initialize(config map[string]interface{}, instanceServicesAPI InstanceServicesAPI)
 	Start()
 	Stop()
 	GetModuleUUID() uuid.UUID

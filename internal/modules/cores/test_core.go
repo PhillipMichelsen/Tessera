@@ -1,6 +1,7 @@
 package concrete
 
 import (
+	"AlgorithmicTraderDistributed/internal/api"
 	"fmt"
 	"math/rand"
 	"time"
@@ -10,9 +11,13 @@ import (
 
 type TestCore struct {
 	stopSignalChannel chan struct{}
+
+	instanceServicesAPI api.InstanceServicesAPI
 }
 
-func (t *TestCore) Initialize(rawConfig map[string]interface{}) error {
+func (t *TestCore) Initialize(rawConfig map[string]interface{}, instanceServicesAPI api.InstanceServicesAPI) error {
+	t.instanceServicesAPI = instanceServicesAPI
+
 	return nil
 }
 
@@ -27,7 +32,7 @@ func (t *TestCore) Stop() error {
 	return nil
 }
 
-func (t *TestCore) GetType() string {
+func (t *TestCore) GetCoreType() string {
 	return "TestCore"
 }
 
@@ -43,7 +48,7 @@ func (t *TestCore) runSomeWorker() {
 			log.Error().Err(err).Msg("TestCore panic recovered")
 		}
 	}()
-	log.Warn().Msg("THE TEST CORE HAS BEEN RUN AND WILL CALL PANIC, STRICTLY FOR TESTING")
+	log.Warn().Msg("-- Test Core will call panic randomly --")
 
 	for {
 		select {
@@ -51,9 +56,9 @@ func (t *TestCore) runSomeWorker() {
 			return
 		default:
 			if rand.Intn(3) == 0 {
-				panic("TestCore panic!!!")
+				panic("TestCore panic!")
 			} else {
-				log.Trace().Msg("TestCore running!!!")
+				log.Trace().Msg("TestCore running...")
 			}
 			time.Sleep(1 * time.Second)
 		}

@@ -7,7 +7,7 @@ type Controller interface {
 	Stop()
 }
 
-func InstantiateControllerByName(controllerName string, instanceAPI api.InstanceAPIExternal) Controller {
+func InstantiateControllerByName(controllerName string, instanceAPI api.InstanceControlAPI) Controller {
 	switch controllerName {
 	default:
 		return nil
