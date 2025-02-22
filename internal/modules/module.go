@@ -3,6 +3,7 @@ package modules
 import (
 	"AlgorithmicTraderDistributed/internal/api"
 	"AlgorithmicTraderDistributed/internal/constants"
+	"context"
 	"sync"
 	"time"
 
@@ -15,35 +16,48 @@ type Module struct {
 	moduleUUID         uuid.UUID
 	status             constants.ModuleStatus
 	timeOfStatusChange time.Time
-	core               Core
+
+	coreContainer CoreContainer
 
 	instanceServicesAPI api.InstanceServicesAPI
 
 	mu sync.Mutex
 }
 
+type CoreContainer struct {
+	core   Core
+	config map[string]interface{}
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
 func NewModule(moduleUUID uuid.UUID, core Core) *Module {
 	return &Module{
 		moduleUUID: moduleUUID,
 		status:     constants.UninitializedModuleStatus,
-		core:       core,
-		mu:         sync.Mutex{},
+		coreContainer: CoreContainer{
+			core: core,
+		},
+		mu: sync.Mutex{},
 	}
 }
 
 func (m *Module) Initialize(config map[string]interface{}, instanceServicesAPI api.InstanceServicesAPI) {
+	if m.status == constants.StartedModuleStatus || m.status == constants.StartingModuleStatus {
+		m.sendLog(zerolog.WarnLevel, "Cannot initialize module that is already started or starting", nil)
+		return
+	}
+
+	if m.status == constants.StoppingModuleStatus {
+		m.sendLog(zerolog.WarnLevel, "Cannot initialize module that is stopping", nil)
+		return
+	}
+
 	m.instanceServicesAPI = instanceServicesAPI
 	m.setStatus(constants.InitializingModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Initializing module...", nil)
 
-	err := m.core.Initialize(config, m.receiveCoreError, m.instanceServicesAPI)
-
-	if err != nil {
-		m.setStatus(constants.ErrorModuleStatus)
-		m.sendLog(zerolog.ErrorLevel, "Error initializing core", err)
-
-		return
-	}
+	m.coreContainer.config = config
 
 	m.setStatus(constants.InitializedModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Initialized module successfully!", nil)
@@ -58,7 +72,11 @@ func (m *Module) Start() {
 	m.setStatus(constants.StartingModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Starting module...", nil)
 
-	m.core.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	m.coreContainer.ctx = ctx
+	m.coreContainer.cancel = cancel
+
+	m.coreContainer.core.Run(ctx, m.coreContainer.config, m.receiveCoreError, m.instanceServicesAPI)
 
 	m.setStatus(constants.StartedModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Started module successfully!", nil)
@@ -73,7 +91,7 @@ func (m *Module) Stop() {
 	m.setStatus(constants.StoppingModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Stopping module...", nil)
 
-	m.core.Stop()
+	m.coreContainer.cancel()
 
 	m.setStatus(constants.StoppedModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Stopped module successfully!", nil)
@@ -108,5 +126,5 @@ func (m *Module) setStatus(newStatus constants.ModuleStatus) {
 }
 
 func (m *Module) sendLog(level zerolog.Level, message string, err error) {
-	log.WithLevel(level).Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetCoreType()).Str("module_status", string(m.status)).Err(err).Msg(message)
+	log.WithLevel(level).Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetCoreTypeName()).Str("module_status", string(m.status)).Err(err).Msg(message)
 }

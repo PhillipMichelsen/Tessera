@@ -16,13 +16,13 @@ type Instance struct {
 	instanceUUID uuid.UUID
 	controllers  []Controller
 
-	modules map[uuid.UUID]*ModuleRecord
+	modules map[uuid.UUID]*ModuleContainer
 
 	packetDispatchQueue      chan *models.Packet
 	packetDispatchStopSignal chan struct{}
 }
 
-type ModuleRecord struct {
+type ModuleContainer struct {
 	ModuleControlAPI   api.ModuleControlAPI
 	ModuleInputChannel chan *models.Packet
 }
@@ -31,7 +31,7 @@ type ModuleRecord struct {
 func NewInstance() *Instance {
 	instance := &Instance{
 		instanceUUID:             uuid.New(),
-		modules:                  make(map[uuid.UUID]*ModuleRecord),
+		modules:                  make(map[uuid.UUID]*ModuleContainer),
 		packetDispatchQueue:      make(chan *models.Packet, 100),
 		packetDispatchStopSignal: make(chan struct{}),
 	}
@@ -48,7 +48,7 @@ func (i *Instance) CreateModule(coreName string, moduleUUID uuid.UUID) {
 		modules.InstantiateCoreByName(coreName),
 	)
 
-	i.modules[module.GetModuleUUID()] = &ModuleRecord{
+	i.modules[module.GetModuleUUID()] = &ModuleContainer{
 		ModuleControlAPI:   module,
 		ModuleInputChannel: nil,
 	}

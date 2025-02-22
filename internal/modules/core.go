@@ -3,12 +3,11 @@ package modules
 import (
 	"AlgorithmicTraderDistributed/internal/api"
 	misccores "AlgorithmicTraderDistributed/internal/modules/cores/misc"
+	"context"
 )
 
 type Core interface {
-	Initialize(rawConfig map[string]interface{}, coreErrorReceiver func(error), instanceServicesAPI api.InstanceServicesAPI) error
-	Run()
-	Stop()
+	Run(ctx context.Context, coreConfig map[string]interface{}, coreErrorReceiver func(error), instance api.InstanceServicesAPI)
 	GetCoreType() string
 }
 
