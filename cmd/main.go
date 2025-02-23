@@ -2,18 +2,17 @@ package main
 
 import (
 	"AlgorithmicTraderDistributed/internal/instance"
-	"os"
-	"os/signal"
-	"syscall"
-
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"})
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"}).Level(zerolog.InfoLevel)
 
 	inst := instance.NewInstance()
 	//inst.AddController(instance.InstantiateController("tui", inst))
@@ -21,8 +20,14 @@ func main() {
 	inst.CreateModule("TestCore", uuid.Must(uuid.NewRandom()))
 
 	inst.Start()
-	inst.InitializeModule(inst.GetModules()[0], map[string]interface{}{})
-	inst.StartModule(inst.GetModules()[0])
+
+	modules := inst.GetModules()
+	log.Info().Msgf("Modules: %v", modules)
+
+	for _, module := range modules {
+		inst.InitializeModule(module, map[string]interface{}{})
+		inst.StartModule(module)
+	}
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)

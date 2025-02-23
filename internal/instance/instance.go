@@ -6,10 +6,9 @@ import (
 	"AlgorithmicTraderDistributed/internal/models"
 	"AlgorithmicTraderDistributed/internal/modules"
 	"fmt"
-	"os"
-
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
+	"os"
 )
 
 type Instance struct {
@@ -144,9 +143,8 @@ func (i *Instance) UnregisterModuleInputChannel(moduleUUID uuid.UUID) {
 	i.modules[moduleUUID].ModuleInputChannel = nil
 }
 
-func (i *Instance) ReceiveModuleError(moduleUUID uuid.UUID, err error) {
-	log.Error().Str("instance_uuid", i.instanceUUID.String()).Err(err).Msg(fmt.Sprintf("ErrorModuleStatus received by module [%s]", moduleUUID))
-	i.Shutdown() // TODO: Implement comprehensive module error handling.
+func (i *Instance) SignalStatusUpdate(moduleUUID uuid.UUID) {
+	log.Info().Str("instance_uuid", i.instanceUUID.String()).Str("module_uuid", moduleUUID.String()).Str("module_status", string(i.GetModuleStatus(moduleUUID))).Msg("Module status updated.")
 }
 
 // NON-API METHODS

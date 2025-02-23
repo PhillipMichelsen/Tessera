@@ -27,7 +27,7 @@ type InstanceServicesAPI interface {
 	DispatchPacket(packet *models.Packet)
 	RegisterModuleInputChannel(moduleUUID uuid.UUID, inputChannel chan *models.Packet)
 	UnregisterModuleInputChannel(moduleUUID uuid.UUID)
-	ReceiveModuleError(moduleUUID uuid.UUID, err error)
+	SignalStatusUpdate(moduleUUID uuid.UUID)
 }
 
 type ModuleControlAPI interface {

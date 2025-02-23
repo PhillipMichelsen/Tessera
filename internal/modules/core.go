@@ -7,8 +7,7 @@ import (
 )
 
 type Core interface {
-	Run(ctx context.Context, coreConfig map[string]interface{}, coreErrorReceiver func(error), instance api.InstanceServicesAPI)
-	GetCoreType() string
+	Run(ctx context.Context, coreConfig map[string]interface{}, instance api.InstanceServicesAPI) error
 }
 
 func InstantiateCoreByName(coreName string) Core {

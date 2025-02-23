@@ -4,6 +4,7 @@ import (
 	"AlgorithmicTraderDistributed/internal/api"
 	"AlgorithmicTraderDistributed/internal/constants"
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -25,10 +26,12 @@ type Module struct {
 }
 
 type CoreContainer struct {
-	core   Core
-	config map[string]interface{}
-	ctx    context.Context
-	cancel context.CancelFunc
+	core     Core
+	coreType string
+	config   map[string]interface{}
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
 }
 
 func NewModule(moduleUUID uuid.UUID, core Core) *Module {
@@ -76,7 +79,9 @@ func (m *Module) Start() {
 	m.coreContainer.ctx = ctx
 	m.coreContainer.cancel = cancel
 
-	m.coreContainer.core.Run(ctx, m.coreContainer.config, m.receiveCoreError, m.instanceServicesAPI)
+	m.coreContainer.wg.Add(1)
+
+	m.runCore()
 
 	m.setStatus(constants.StartedModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Started module successfully!", nil)
@@ -88,13 +93,7 @@ func (m *Module) Stop() {
 		return
 	}
 
-	m.setStatus(constants.StoppingModuleStatus)
-	m.sendLog(zerolog.DebugLevel, "Stopping module...", nil)
-
-	m.coreContainer.cancel()
-
-	m.setStatus(constants.StoppedModuleStatus)
-	m.sendLog(zerolog.DebugLevel, "Stopped module successfully!", nil)
+	m.stopModule(true)
 }
 
 func (m *Module) GetModuleUUID() uuid.UUID {
@@ -107,15 +106,54 @@ func (m *Module) GetStatus() constants.ModuleStatus {
 	return m.status
 }
 
-func (m *Module) receiveCoreError(err error) {
-	m.setStatus(constants.ErrorModuleStatus)
-	m.sendLog(zerolog.ErrorLevel, "Received error from core, stopping and reporting to instance...", err)
-
+func (m *Module) stopModule(stopCore bool) {
+	m.setStatus(constants.StoppingModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Stopping module...", nil)
-	m.core.Stop()
-	m.sendLog(zerolog.DebugLevel, "Stopped module successfully!", nil)
 
-	m.instanceServicesAPI.ReceiveModuleError(m.moduleUUID, err)
+	if stopCore {
+		m.stopCore()
+		m.coreContainer.wg.Wait()
+	}
+
+	m.setStatus(constants.StoppedModuleStatus)
+	m.sendLog(zerolog.DebugLevel, "Stopped module successfully!", nil)
+}
+
+func (m *Module) runCore() {
+	m.sendLog(zerolog.DebugLevel, "Running core in goroutine...", nil)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("%v", r)
+				m.sendLog(zerolog.ErrorLevel, "Core's Run function panicked! Recovered and sent to core exit handler.", err)
+				m.handleCoreExit(err)
+			}
+		}()
+		err := m.coreContainer.core.Run(m.coreContainer.ctx, m.coreContainer.config, m.instanceServicesAPI)
+		m.handleCoreExit(err)
+	}()
+	m.sendLog(zerolog.DebugLevel, "Core running in goroutine!", nil)
+}
+
+func (m *Module) stopCore() {
+	m.sendLog(zerolog.DebugLevel, "Stopping core...", nil)
+	m.coreContainer.cancel()
+}
+
+func (m *Module) handleCoreExit(err error) {
+	m.coreContainer.wg.Done()
+
+	if err == nil {
+		m.sendLog(zerolog.DebugLevel, "Core has exited successfully.", nil)
+
+		if m.status != constants.StoppingModuleStatus {
+			m.sendLog(zerolog.DebugLevel, "Core's exit was self-initiated. Will stop module.", nil)
+			m.stopModule(false)
+		}
+	} else {
+		m.sendLog(zerolog.WarnLevel, "Core exited with error. Will stop module.", err)
+		m.stopModule(false)
+	}
 }
 
 func (m *Module) setStatus(newStatus constants.ModuleStatus) {
@@ -126,5 +164,5 @@ func (m *Module) setStatus(newStatus constants.ModuleStatus) {
 }
 
 func (m *Module) sendLog(level zerolog.Level, message string, err error) {
-	log.WithLevel(level).Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.core.GetCoreTypeName()).Str("module_status", string(m.status)).Err(err).Msg(message)
+	log.WithLevel(level).Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.coreContainer.coreType).Str("module_status", string(m.status)).Err(err).Msg(message)
 }
