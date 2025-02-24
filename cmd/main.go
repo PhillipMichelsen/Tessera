@@ -12,26 +12,23 @@ import (
 
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"}).Level(zerolog.InfoLevel)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"}).Level(zerolog.DebugLevel)
 
 	inst := instance.NewInstance()
 	//inst.AddController(instance.InstantiateController("tui", inst))
 
-	inst.CreateModule("TestCore", uuid.Must(uuid.NewRandom()))
+	testCoreUUID := uuid.Must(uuid.NewRandom())
+	inst.CreateModule("PanicTestCore", testCoreUUID)
 
 	inst.Start()
 
-	modules := inst.GetModules()
-	log.Info().Msgf("Modules: %v", modules)
-
-	for _, module := range modules {
-		inst.InitializeModule(module, map[string]interface{}{})
-		inst.StartModule(module)
-	}
+	inst.InitializeModule(testCoreUUID, map[string]interface{}{"panicIn": 3})
+	inst.StartModule(testCoreUUID)
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 
+	log.Info().Msg("Main thread waiting for shutdown signal...")
 	<-signals
 	inst.Shutdown()
 }

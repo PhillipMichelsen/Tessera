@@ -9,10 +9,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type TestCore struct{}
+type PanicTestCore struct{}
 
-func (c *TestCore) Run(ctx context.Context, coreConfig map[string]interface{}, instance api.InstanceServicesAPI) error {
+func (c *PanicTestCore) Run(ctx context.Context, coreConfig map[string]interface{}, instance api.InstanceServicesAPI) error {
 	log.Warn().Msg("!! Test Core will call panic in 5 seconds !!")
+
+	log.Debug().Msg(fmt.Sprint("Core Config: ", coreConfig))
 
 	startTime := time.Now()
 	ticker := time.NewTicker(1 * time.Second)
@@ -29,4 +31,8 @@ func (c *TestCore) Run(ctx context.Context, coreConfig map[string]interface{}, i
 			log.Trace().Msg(fmt.Sprint("Test Core will panic in ", 5-int(time.Since(startTime).Seconds()), " seconds"))
 		}
 	}
+}
+
+func (c *PanicTestCore) GetCoreName() string {
+	return "PanicTestCore"
 }

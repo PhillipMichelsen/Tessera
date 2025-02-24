@@ -8,13 +8,15 @@ import (
 
 type Core interface {
 	Run(ctx context.Context, coreConfig map[string]interface{}, instance api.InstanceServicesAPI) error
+	GetCoreName() string
 }
 
-func InstantiateCoreByName(coreName string) Core {
+func DefaultCoreFactory(coreName string) Core {
 	switch coreName {
-	case "TestCore":
-		return &misccores.TestCore{}
+	case "PanicTestCore":
+		return &misccores.PanicTestCore{}
+	default:
+		return nil
 	}
-
-	return nil
 }
+

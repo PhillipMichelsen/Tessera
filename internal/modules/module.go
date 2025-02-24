@@ -27,7 +27,6 @@ type Module struct {
 
 type CoreContainer struct {
 	core     Core
-	coreType string
 	config   map[string]interface{}
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -45,7 +44,7 @@ func NewModule(moduleUUID uuid.UUID, core Core) *Module {
 	}
 }
 
-func (m *Module) Initialize(config map[string]interface{}, instanceServicesAPI api.InstanceServicesAPI) {
+func (m *Module) Initialize(coreConfig map[string]interface{}, instanceServicesAPI api.InstanceServicesAPI) {
 	if m.status == constants.StartedModuleStatus || m.status == constants.StartingModuleStatus {
 		m.sendLog(zerolog.WarnLevel, "Cannot initialize module that is already started or starting", nil)
 		return
@@ -60,7 +59,7 @@ func (m *Module) Initialize(config map[string]interface{}, instanceServicesAPI a
 	m.setStatus(constants.InitializingModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Initializing module...", nil)
 
-	m.coreContainer.config = config
+	m.coreContainer.config = coreConfig
 
 	m.setStatus(constants.InitializedModuleStatus)
 	m.sendLog(zerolog.DebugLevel, "Initialized module successfully!", nil)
@@ -164,5 +163,5 @@ func (m *Module) setStatus(newStatus constants.ModuleStatus) {
 }
 
 func (m *Module) sendLog(level zerolog.Level, message string, err error) {
-	log.WithLevel(level).Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.coreContainer.coreType).Str("module_status", string(m.status)).Err(err).Msg(message)
+	log.WithLevel(level).Str("module_uuid", m.moduleUUID.String()).Str("core_type", m.coreContainer.core.GetCoreName()).Str("module_status", string(m.status)).Err(err).Msg(message)
 }

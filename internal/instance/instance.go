@@ -6,9 +6,11 @@ import (
 	"AlgorithmicTraderDistributed/internal/models"
 	"AlgorithmicTraderDistributed/internal/modules"
 	"fmt"
-	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 	"os"
+
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type Instance struct {
@@ -40,28 +42,34 @@ func NewInstance() *Instance {
 // EXTERNAL API METHODS
 
 // CreateModule creates a new module and registers it for communication.
+// TODO: Add support for plugin cores. Currently only uses the DefaultCoreFactor method exposed by modules.
 func (i *Instance) CreateModule(coreName string, moduleUUID uuid.UUID) {
-
 	module := modules.NewModule(
 		moduleUUID,
-		modules.InstantiateCoreByName(coreName),
+		modules.DefaultCoreFactory(coreName),
 	)
 
 	i.modules[module.GetModuleUUID()] = &ModuleContainer{
 		ModuleControlAPI:   module,
 		ModuleInputChannel: nil,
 	}
+
+	i.sendLog(zerolog.InfoLevel, fmt.Sprintf("Created module with [%s] core and moduleUUID [%s]", coreName, moduleUUID), nil)
 }
 
 // RemoveModule stops and removes the module.
 func (i *Instance) RemoveModule(moduleUUID uuid.UUID) {
 	i.UnregisterModuleInputChannel(moduleUUID)
 	delete(i.modules, moduleUUID)
+
+	i.sendLog(zerolog.InfoLevel, fmt.Sprintf("Removed module with moduleUUID [%s]", moduleUUID), nil)
 }
 
 // InitializeModule initializes the module with the given configuration.
 func (i *Instance) InitializeModule(moduleUUID uuid.UUID, config map[string]interface{}) {
 	i.modules[moduleUUID].ModuleControlAPI.Initialize(config, i)
+
+	i.sendLog(zerolog.InfoLevel, fmt.Sprintf("Initialized module with moduleUUID [%s]", moduleUUID), nil)
 }
 
 // StartModule starts the module.
@@ -71,6 +79,8 @@ func (i *Instance) StartModule(moduleUUID uuid.UUID) {
 		return
 	}
 	i.modules[moduleUUID].ModuleControlAPI.Start()
+
+	i.sendLog(zerolog.InfoLevel, fmt.Sprintf("Started module with moduleUUID [%s]", moduleUUID), nil)
 }
 
 // StopModule stops the module.
@@ -80,17 +90,19 @@ func (i *Instance) StopModule(moduleUUID uuid.UUID) {
 		return
 	}
 	i.modules[moduleUUID].ModuleControlAPI.Stop()
+
+	i.sendLog(zerolog.InfoLevel, fmt.Sprintf("Stopped module with moduleUUID [%s]", moduleUUID), nil)
 }
 
 // Halt ungracefully shuts down the instance.
 func (i *Instance) Halt() {
-	log.Error().Msg("INSTANCE HALT REQUESTED... SHUTTING DOWN UNGRACEFULLY!")
+	i.sendLog(zerolog.ErrorLevel, "Halting instance...", nil)
 	os.Exit(444)
 }
 
 // Shutdown gracefully stops all modules and shuts down the instance.
 func (i *Instance) Shutdown() {
-	log.Info().Msg("Shutting down instance...")
+	i.sendLog(zerolog.InfoLevel, "Shutting down instance...", nil)
 
 	for _, module := range i.modules {
 		if module.ModuleControlAPI.GetStatus() == constants.StartedModuleStatus {
@@ -103,7 +115,7 @@ func (i *Instance) Shutdown() {
 		controller.Stop()
 	}
 
-	log.Info().Msg("Instance shut down successfully!")
+	i.sendLog(zerolog.InfoLevel, "Instance shut down successfully.", nil)
 	os.Exit(0)
 }
 
@@ -144,7 +156,7 @@ func (i *Instance) UnregisterModuleInputChannel(moduleUUID uuid.UUID) {
 }
 
 func (i *Instance) SignalStatusUpdate(moduleUUID uuid.UUID) {
-	log.Info().Str("instance_uuid", i.instanceUUID.String()).Str("module_uuid", moduleUUID.String()).Str("module_status", string(i.GetModuleStatus(moduleUUID))).Msg("Module status updated.")
+	i.sendLog(zerolog.InfoLevel, fmt.Sprintf("Received status update signal from module with moduleUUID [%s], new status: %s", moduleUUID, i.GetModuleStatus(moduleUUID)), nil)
 }
 
 // NON-API METHODS
@@ -155,6 +167,8 @@ func (i *Instance) Start() {
 	}
 
 	go i.packetDispatchWorker()
+
+	i.sendLog(zerolog.InfoLevel, "Instance started successfully.", nil)
 }
 
 func (i *Instance) AddController(controller Controller) {
@@ -179,9 +193,13 @@ func (i *Instance) packetDispatchWorker() {
 func (i *Instance) dispatchMessage(packet *models.Packet) {
 	destinationModuleChannel := i.modules[packet.DestinationModuleUUID].ModuleInputChannel
 	if destinationModuleChannel == nil {
-		log.Printf("Destination module [%s] not found.\n", packet.DestinationModuleUUID)
+		i.sendLog(zerolog.ErrorLevel, fmt.Sprintf("Failed to dispatch packet to module with moduleUUID [%s]: module not found", packet.DestinationModuleUUID), nil)
 		return
 	}
 
 	destinationModuleChannel <- packet
+}
+
+func (i *Instance) sendLog(level zerolog.Level, message string, err error) {
+	log.WithLevel(level).Str("instance_uuid", i.instanceUUID.String()).Err(err).Msg(message)
 }
