@@ -18,11 +18,11 @@ func main() {
 	//inst.AddController(instance.InstantiateController("tui", inst))
 
 	testCoreUUID := uuid.Must(uuid.NewRandom())
-	inst.CreateModule("PanicTestCore", testCoreUUID)
+	inst.CreateModule("MockCore", testCoreUUID)
 
 	inst.Start()
 
-	inst.InitializeModule(testCoreUUID, map[string]interface{}{"panicIn": 3})
+	inst.InitializeModule(testCoreUUID, map[string]interface{}{})
 	inst.StartModule(testCoreUUID)
 
 	signals := make(chan os.Signal, 1)
@@ -30,5 +30,6 @@ func main() {
 
 	log.Info().Msg("Main thread waiting for shutdown signal...")
 	<-signals
+	log.Info().Msg("Shutdown signal received. Initiating shutdown...")
 	inst.Shutdown()
 }

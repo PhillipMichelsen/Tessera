@@ -13,10 +13,11 @@ type Core interface {
 
 func DefaultCoreFactory(coreName string) Core {
 	switch coreName {
-	case "PanicTestCore":
-		return &misccores.PanicTestCore{}
+	case "MockCore":
+		return &misccores.MockCore{}
+	case "MockPanicCore":
+		return &misccores.MockPanicCore{}
 	default:
-		return nil
+		panic("Requested core not found")
 	}
 }
-
