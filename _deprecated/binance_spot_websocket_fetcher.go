@@ -1,4 +1,4 @@
-package concrete_old
+package _deprecated
 
 import (
 	"AlgorithimcTraderDistributed/common/models"
@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-type BinanceFuturesWebsocketFetcher struct {
+type BinanceSpotWebsocketFetcher struct {
 	name          string
 	uuid          uuid.UUID
 	running       bool
@@ -22,12 +22,13 @@ type BinanceFuturesWebsocketFetcher struct {
 	routeFunction func(data models.MarketDataPiece)
 
 	conn *websocket.Conn
-	mu   sync.Mutex
+
+	mu sync.Mutex
 }
 
-func NewBinanceFuturesWebsocketFetcher(routeFunction func(data models.MarketDataPiece), config map[string]string) *BinanceFuturesWebsocketFetcher {
-	return &BinanceFuturesWebsocketFetcher{
-		name:          "BinanceFuturesWebsocketFetcher",
+func NewBinanceSpotWebsocketFetcher(routeFunction func(data models.MarketDataPiece), config map[string]string) *BinanceSpotWebsocketFetcher {
+	return &BinanceSpotWebsocketFetcher{
+		name:          "BinanceSpotWebsocketFetcher",
 		uuid:          uuid.New(),
 		running:       false,
 		config:        config,
@@ -35,11 +36,11 @@ func NewBinanceFuturesWebsocketFetcher(routeFunction func(data models.MarketData
 	}
 }
 
-func (r *BinanceFuturesWebsocketFetcher) Handle(data models.MarketDataPiece) {
+func (r *BinanceSpotWebsocketFetcher) Handle(data models.MarketDataPiece) {
 	return
 }
 
-func (r *BinanceFuturesWebsocketFetcher) Start() error {
+func (r *BinanceSpotWebsocketFetcher) Start() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -65,7 +66,7 @@ func (r *BinanceFuturesWebsocketFetcher) Start() error {
 	u := url.URL{Scheme: "wss", Host: baseURL, Path: "/stream"}
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		return fmt.Errorf("failed to connect to Binance Futures WebSocket: %w", err)
+		return fmt.Errorf("failed to connect to Binance Spot WebSocket: %w", err)
 	}
 	r.conn = conn
 
@@ -78,7 +79,7 @@ func (r *BinanceFuturesWebsocketFetcher) Start() error {
 	if err := r.conn.WriteJSON(subscribeMsg); err != nil {
 		return fmt.Errorf("failed to send subscription message: %w", err)
 	}
-	log.Printf("Subscribed to streams on Binance Futures Websocket: %v", streamsArray)
+	log.Printf("Subscribed to streams on Binance Spot Websocket: %v", streamsArray)
 
 	// Start listening for incoming messages
 	r.running = true
@@ -87,7 +88,7 @@ func (r *BinanceFuturesWebsocketFetcher) Start() error {
 	return nil
 }
 
-func (r *BinanceFuturesWebsocketFetcher) Stop() error {
+func (r *BinanceSpotWebsocketFetcher) Stop() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -101,20 +102,20 @@ func (r *BinanceFuturesWebsocketFetcher) Stop() error {
 		return fmt.Errorf("failed to close WebSocket connection: %w", err)
 	}
 
-	log.Println("BinanceFuturesWebsocketFetcher stopped")
+	log.Println("BinanceSpotWebsocketFetcher stopped")
 	return nil
 }
 
-func (r *BinanceFuturesWebsocketFetcher) GetName() string {
+func (r *BinanceSpotWebsocketFetcher) GetName() string {
 	return r.name
 }
 
-func (r *BinanceFuturesWebsocketFetcher) GetUUID() uuid.UUID {
+func (r *BinanceSpotWebsocketFetcher) GetUUID() uuid.UUID {
 	return r.uuid
 }
 
 // listen reads incoming WebSocket messages and handles them
-func (r *BinanceFuturesWebsocketFetcher) listen() {
+func (r *BinanceSpotWebsocketFetcher) listen() {
 	defer func(conn *websocket.Conn) {
 		err := conn.Close()
 		if err != nil {
@@ -130,15 +131,15 @@ func (r *BinanceFuturesWebsocketFetcher) listen() {
 		}
 
 		// Handle each message based on stream type
-		r.HandleMessage(message)
+		r.handleMessage(message)
 	}
 }
 
-// HandleMessage processes each WebSocket message dynamically
-func (r *BinanceFuturesWebsocketFetcher) HandleMessage(message []byte) {
+// handleMessage processes each WebSocket message dynamically
+func (r *BinanceSpotWebsocketFetcher) handleMessage(message []byte) {
 	var msg struct {
 		Stream string          `json:"stream"`
-		Data   json.RawMessage `json:"data"` // Use RawMessage to defer JSON decoding
+		Data   json.RawMessage `json:"data"`
 	}
 
 	if err := json.Unmarshal(message, &msg); err != nil {
@@ -160,7 +161,7 @@ func (r *BinanceFuturesWebsocketFetcher) HandleMessage(message []byte) {
 
 	// Populate `MarketDataPiece` structure
 	marketDataPiece := models.MarketDataPiece{
-		Source:           "BinanceFutures",
+		Source:           r.name,
 		Symbol:           streamInfo["symbol"],
 		BaseType:         streamInfo["baseType"],
 		Interval:         streamInfo["interval"],
@@ -168,12 +169,13 @@ func (r *BinanceFuturesWebsocketFetcher) HandleMessage(message []byte) {
 		Payload:          models.MarketData(data),
 	}
 
+	log.Println(data)
+
 	// Pass the structured data to the routing function
 	r.routeFunction(marketDataPiece)
 }
 
-// parseStreamInformation extracts metadata from stream names for Futures
-func (r *BinanceFuturesWebsocketFetcher) parseStreamInformation(stream string) map[string]string {
+func (r *BinanceSpotWebsocketFetcher) parseStreamInformation(stream string) map[string]string {
 	stream = strings.TrimSpace(stream)
 	parts := strings.Split(stream, "@")
 	if len(parts) < 2 {
@@ -188,21 +190,18 @@ func (r *BinanceFuturesWebsocketFetcher) parseStreamInformation(stream string) m
 	case strings.HasPrefix(streamType, "kline_"):
 		result["baseType"] = "kline"
 		result["interval"] = strings.TrimPrefix(streamType, "kline_")
+	case streamType == "trade":
+		result["baseType"] = "trade"
+		result["interval"] = "Realtime"
 	case streamType == "aggTrade":
 		result["baseType"] = "trade"
-		result["interval"] = "100ms"
+		result["interval"] = "Realtime"
 	case streamType == "depth":
 		result["baseType"] = "depth"
-		result["interval"] = "250ms"
-	case streamType == "markPrice":
-		result["baseType"] = "markPrice"
 		result["interval"] = "1s"
 	case streamType == "bookTicker":
 		result["baseType"] = "bookTicker"
 		result["interval"] = "Realtime"
-	case streamType == "forceOrder":
-		result["baseType"] = "forceOrder"
-		result["interval"] = "1s"
 	default:
 		result["baseType"] = "UnrecognizedStreamType"
 	}
