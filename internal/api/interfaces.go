@@ -31,9 +31,8 @@ type InstanceServicesAPI interface {
 }
 
 type ModuleControlAPI interface {
-	Initialize(config map[string]interface{}, instanceServicesAPI InstanceServicesAPI)
-	Start()
+	Start(config map[string]interface{}, instanceServicesAPI InstanceServicesAPI)
 	Stop()
 	GetModuleUUID() uuid.UUID
-	GetStatus() constants.ModuleStatus
+	IsActive() bool
 }
