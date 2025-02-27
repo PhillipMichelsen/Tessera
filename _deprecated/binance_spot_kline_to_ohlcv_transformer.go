@@ -2,7 +2,7 @@ package _deprecated
 
 import (
 	"AlgorithmicTraderDistributed/internal/api"
-	"AlgorithmicTraderDistributed/internal/models"
+	models2 "AlgorithmicTraderDistributed/pkg/models"
 	"fmt"
 	"time"
 
@@ -49,14 +49,14 @@ func (b *BinanceSpotKlineToOHLCVTransformer) Initialize(rawConfig map[string]int
 		// Store string mapping
 		b.config.InputOutputUUIDMappings[key] = value
 
-		// Parse and store UUID mapping
+		// Parse and store uuid mapping
 		keyUUID, err := uuid.Parse(key)
 		if err != nil {
-			return fmt.Errorf("invalid key UUID: %s, error: %v", key, err)
+			return fmt.Errorf("invalid key uuid: %s, error: %v", key, err)
 		}
 		valueUUID, err := uuid.Parse(value)
 		if err != nil {
-			return fmt.Errorf("invalid value UUID: %s, error: %v", value, err)
+			return fmt.Errorf("invalid value uuid: %s, error: %v", value, err)
 		}
 		b.inputOutputUUIDMappings[keyUUID] = valueUUID
 	}
@@ -76,7 +76,7 @@ func (b *BinanceSpotKlineToOHLCVTransformer) Run(instanceAPI api.InstanceAPIInte
 		case <-b.stopSignalChannel:
 			return
 		case message := <-inputChannel:
-			packet, ok := message.(models.Packet)
+			packet, ok := message.(models2.Packet)
 			if !ok {
 				runtimeErrorReceiver(fmt.Errorf("invalid message received (Expected Packet type): %v", message))
 				continue
@@ -99,15 +99,15 @@ func (b *BinanceSpotKlineToOHLCVTransformer) Stop() error {
 	return nil
 }
 
-func (b *BinanceSpotKlineToOHLCVTransformer) handlePacket(packet models.Packet) (models.Packet, error) {
-	marketData, ok := packet.Payload.(models.MarketData)
+func (b *BinanceSpotKlineToOHLCVTransformer) handlePacket(packet models2.Packet) (models2.Packet, error) {
+	marketData, ok := packet.Payload.(models2.MarketData)
 	if !ok {
-		return models.Packet{}, fmt.Errorf("invalid packet payload type: %T", packet.Payload)
+		return models2.Packet{}, fmt.Errorf("invalid packet payload type: %T", packet.Payload)
 	}
 
-	serializedJSON, ok := marketData.Data.(models.SerializedJSON)
+	serializedJSON, ok := marketData.Data.(models2.SerializedJSON)
 	if !ok {
-		return models.Packet{}, fmt.Errorf("invalid market data data type: %T", marketData.Data)
+		return models2.Packet{}, fmt.Errorf("invalid market data data type: %T", marketData.Data)
 	}
 
 	// Parse kline JSON
@@ -121,11 +121,11 @@ func (b *BinanceSpotKlineToOHLCVTransformer) handlePacket(packet models.Packet) 
 
 	if !timestamp.Exists() || !open.Exists() || !high.Exists() ||
 		!low.Exists() || !closePrice.Exists() || !volume.Exists() {
-		return models.Packet{}, fmt.Errorf("missing required fields in kline JSON: %s", jsonPayload)
+		return models2.Packet{}, fmt.Errorf("missing required fields in kline JSON: %s", jsonPayload)
 	}
 
 	// Create OHLCV
-	ohlcv := models.OHLCV{
+	ohlcv := models2.OHLCV{
 		Open:      open.Float(),
 		High:      high.Float(),
 		Low:       low.Float(),
@@ -134,16 +134,16 @@ func (b *BinanceSpotKlineToOHLCVTransformer) handlePacket(packet models.Packet) 
 		Timestamp: time.UnixMilli(timestamp.Int()),
 	}
 
-	// Get destination UUID
+	// Get destination uuid
 	destinationUUID, exists := b.inputOutputUUIDMappings[packet.DestinationModuleUUID]
 	if !exists {
-		panic(fmt.Sprintf("no mapping for UUID: %s", packet.DestinationModuleUUID))
+		panic(fmt.Sprintf("no mapping for uuid: %s", packet.DestinationModuleUUID))
 	}
 
-	return models.Packet{
+	return models2.Packet{
 		SourceModuleUUID:      b.moduleUUID,
 		DestinationModuleUUID: destinationUUID,
-		Payload: models.MarketData{
+		Payload: models2.MarketData{
 			UUID: destinationUUID,
 			Data: ohlcv,
 		},

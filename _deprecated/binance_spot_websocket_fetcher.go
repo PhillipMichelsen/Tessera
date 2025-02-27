@@ -119,14 +119,14 @@ func (r *BinanceSpotWebsocketFetcher) listen() {
 	defer func(conn *websocket.Conn) {
 		err := conn.Close()
 		if err != nil {
-			log.Printf("Error closing connection: %v", err)
+			log.Printf("error closing connection: %v", err)
 		}
 	}(r.conn)
 
 	for r.running {
 		_, message, err := r.conn.ReadMessage()
 		if err != nil {
-			log.Printf("Error reading message: %v", err)
+			log.Printf("error reading message: %v", err)
 			continue
 		}
 
@@ -143,7 +143,7 @@ func (r *BinanceSpotWebsocketFetcher) handleMessage(message []byte) {
 	}
 
 	if err := json.Unmarshal(message, &msg); err != nil {
-		log.Printf("Error unmarshalling message: %v", err)
+		log.Printf("error unmarshalling message: %v", err)
 		return
 	}
 
@@ -155,7 +155,7 @@ func (r *BinanceSpotWebsocketFetcher) handleMessage(message []byte) {
 
 	var data map[string]interface{}
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
-		log.Printf("Error unmarshalling data field: %v", err)
+		log.Printf("error unmarshalling data field: %v", err)
 		return
 	}
 

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"AlgorithmicTraderDistributed/internal/instance"
+	"AlgorithmicTraderDistributed/_deprecated/instance"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -15,12 +15,13 @@ func main() {
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"}).Level(zerolog.DebugLevel)
 
 	inst := instance.NewInstance()
+
 	//inst.AddController(instance.InstantiateController("tui", inst))
 
-	testCoreUUID := uuid.Must(uuid.NewRandom())
-	inst.CreateModule("MockCore", testCoreUUID)
-
 	inst.Start()
+
+	testCoreUUID := uuid.Must(uuid.NewRandom())
+	inst.CreateModule("MockPanicCore", testCoreUUID)
 
 	inst.InitializeModule(testCoreUUID, map[string]interface{}{})
 	inst.StartModule(testCoreUUID)
