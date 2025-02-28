@@ -46,10 +46,7 @@ func (wm *WorkerManager) AddWorker(workerUUID uuid.UUID, worker worker.Worker) {
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
-	// Check for uuid conflict, should be a 1 in 2^128 chance, but that is not zero.
-	if _, exists := wm.workers[workerUUID]; exists {
-		return
-	}
+	// We will skip the workerUUID collision checks, such 2^128 collisions are best seen as an act of god.
 
 	wc := &WorkerContainer{
 		uuid:   workerUUID,
