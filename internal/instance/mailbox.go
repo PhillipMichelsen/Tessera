@@ -8,8 +8,8 @@ import (
 
 // MailboxMessage represents a worker-to-worker message.
 type MailboxMessage struct {
-	SenderWorkerUUID uuid.UUID
-	SendTimestamp    time.Time
+	SourceWorkerUUID uuid.UUID
+	SentTimestamp    time.Time
 	Payload          interface{}
 }
 

@@ -48,18 +48,25 @@ func (d *Dispatcher) CreateMailbox(workerID uuid.UUID, receiverFunc func(Mailbox
 	d.mailboxes[workerID] = mb
 }
 
+// RemoveMailbox unregisters a worker's mailbox.
+func (d *Dispatcher) RemoveMailbox(workerID uuid.UUID) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	delete(d.mailboxes, workerID)
+}
+
 // SendMessage queues a message for delivery.
-func (d *Dispatcher) SendMessage(senderWorkerUUID, receiverWorkerUUID uuid.UUID, payload interface{}) error {
+func (d *Dispatcher) SendMessage(sourceWorkerUUID, destinationWorkerUUID uuid.UUID, payload interface{}) error {
 	d.mu.RLock()
-	mb, exists := d.mailboxes[receiverWorkerUUID]
+	mb, exists := d.mailboxes[destinationWorkerUUID]
 	d.mu.RUnlock()
 	if !exists {
-		return fmt.Errorf("worker %s does not have a mailbox", receiverWorkerUUID)
+		return fmt.Errorf("worker %s does not have a mailbox", destinationWorkerUUID)
 	}
 
 	msg := MailboxMessage{
-		SenderWorkerUUID: senderWorkerUUID,
-		SendTimestamp:    time.Now(),
+		SourceWorkerUUID: sourceWorkerUUID,
+		SentTimestamp:    time.Now(),
 		Payload:          payload,
 	}
 

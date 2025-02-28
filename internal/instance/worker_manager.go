@@ -68,13 +68,13 @@ func (wm *WorkerManager) RemoveWorker(workerUUID uuid.UUID) {
 }
 
 // StartWorker starts a registered worker using its uuid and configuration.
-func (wm *WorkerManager) StartWorker(workerUUID uuid.UUID, config map[string]interface{}) {
+func (wm *WorkerManager) StartWorker(workerUUID uuid.UUID, config map[string]interface{}, workerInstanceServices worker.InstanceServices) error {
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
 	wc, exists := wm.workers[workerUUID]
 	if !exists || wc.status.isActive {
-		return
+		return fmt.Errorf("worker %s not registered or already active", workerUUID)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -92,27 +92,30 @@ func (wm *WorkerManager) StartWorker(workerUUID uuid.UUID, config map[string]int
 			}
 		}()
 
-		exitCode, err := wc.worker.Run(ctx, config, wm)
+		exitCode, err := wc.worker.Run(ctx, config, workerInstanceServices)
 		wm.handleWorkerExit(workerUUID, exitCode, err)
 	}()
+
+	return nil
 }
 
 // StopWorker stops a running worker by its uuid.
-func (wm *WorkerManager) StopWorker(workerUUID uuid.UUID) {
+func (wm *WorkerManager) StopWorker(workerUUID uuid.UUID) error {
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
 	wc, exists := wm.workers[workerUUID]
 	if !exists || !wc.status.isActive {
-		return // worker not registered or not active
+		return fmt.Errorf("worker %s not registered or not active", workerUUID)
 	}
 
 	if wc.cancelFunc == nil {
-		panic("Cancel function not created for worker, should never happen under normal circumstances")
-		return // Cancel function not created, should never happen
+		return fmt.Errorf("worker %s has no cancel function", workerUUID)
 	}
 
 	wc.cancelFunc()
+
+	return nil
 }
 
 func (wm *WorkerManager) GetWorkers() map[uuid.UUID]*WorkerContainer {
@@ -126,10 +129,7 @@ func (wm *WorkerManager) handleWorkerExit(workerUUID uuid.UUID, exitCode worker.
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
-	wc, exists := wm.workers[workerUUID]
-	if !exists {
-		return
-	}
+	wc := wm.workers[workerUUID]
 
 	wc.status.isActive = false
 	wc.status.exitCode = exitCode
