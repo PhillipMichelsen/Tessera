@@ -20,6 +20,7 @@ type Mailbox struct {
 	cond         *sync.Cond
 	receiverFunc func(MailboxMessage)
 	stop         chan struct{}
+	startOnce    sync.Once
 }
 
 // NewMailbox initializes a mailbox with a receiver function.
@@ -30,34 +31,15 @@ func NewMailbox(receiverFunc func(MailboxMessage)) *Mailbox {
 		stop:         make(chan struct{}),
 	}
 	m.cond = sync.NewCond(&m.mu)
-
-	go func() {
-		for {
-			m.mu.Lock()
-			for len(m.messages) == 0 {
-				m.cond.Wait()
-				select {
-				case <-m.stop:
-					m.mu.Unlock()
-					return
-				default:
-				}
-			}
-
-			msg := m.messages[0]
-			m.messages = m.messages[1:]
-			m.mu.Unlock()
-
-			// Invoke the worker's receiver function, sending the message to the worker.
-			m.receiverFunc(msg)
-		}
-	}()
-
 	return m
 }
 
-// Start does nothing really...
-func (m *Mailbox) Start() {}
+// Start launches the mailbox processing goroutine.
+func (m *Mailbox) Start() {
+	m.startOnce.Do(func() {
+		go m.process()
+	})
+}
 
 // Stop signals the mailbox to stop processing messages.
 func (m *Mailbox) Stop() {
@@ -65,28 +47,57 @@ func (m *Mailbox) Stop() {
 	m.cond.Broadcast()
 }
 
+// process is the mailbox's message loop.
+func (m *Mailbox) process() {
+	for {
+		m.mu.Lock()
+		// Wait until there's a message or a stop signal.
+		for len(m.messages) == 0 {
+			select {
+			case <-m.stop:
+				m.mu.Unlock()
+				return
+			default:
+			}
+			m.cond.Wait()
+		}
+		// Dequeue the first message.
+		msg := m.messages[0]
+		m.messages = m.messages[1:]
+		// Signal potential pushers that a slot is free.
+		m.cond.Signal()
+		m.mu.Unlock()
+
+		// Process the message outside the lock.
+		m.receiverFunc(msg)
+	}
+}
+
 // PushMessage adds a message to the mailbox and signals the worker.
 func (m *Mailbox) PushMessage(msg MailboxMessage) {
 	m.mu.Lock()
 	m.messages = append(m.messages, msg)
-	m.cond.Signal() // Wake up the receiver goroutine
+	m.cond.Signal()
 	m.mu.Unlock()
 }
 
+// GetMessages returns the current slice of messages (for inspection).
 func (m *Mailbox) GetMessages() []MailboxMessage {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.messages
 }
 
+// GetMessageCount returns the number of messages in the mailbox.
 func (m *Mailbox) GetMessageCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.messages)
 }
 
+// ClearMailbox removes all messages from the mailbox.
 func (m *Mailbox) ClearMailbox() {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.messages = make([]MailboxMessage, 0)
+	m.mu.Unlock()
 }

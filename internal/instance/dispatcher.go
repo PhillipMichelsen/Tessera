@@ -49,7 +49,7 @@ func (d *Dispatcher) CreateMailbox(workerID uuid.UUID, receiverFunc func(Mailbox
 }
 
 // SendMessage queues a message for delivery.
-func (d *Dispatcher) SendMessage(senderWorkerUUID uuid.UUID, receiverWorkerUUID uuid.UUID, payload interface{}) error {
+func (d *Dispatcher) SendMessage(senderWorkerUUID, receiverWorkerUUID uuid.UUID, payload interface{}) error {
 	d.mu.RLock()
 	mb, exists := d.mailboxes[receiverWorkerUUID]
 	d.mu.RUnlock()
