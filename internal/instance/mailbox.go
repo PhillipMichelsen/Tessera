@@ -76,6 +76,13 @@ func (m *Mailbox) process() {
 // PushMessage adds a message to the mailbox and signals the worker.
 func (m *Mailbox) PushMessage(msg MailboxMessage) {
 	m.mu.Lock()
+
+	select {
+	case <-m.stop:
+		m.mu.Unlock()
+		return
+	default:
+	}
 	m.messages = append(m.messages, msg)
 	m.cond.Signal()
 	m.mu.Unlock()

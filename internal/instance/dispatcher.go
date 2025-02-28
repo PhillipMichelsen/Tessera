@@ -56,11 +56,13 @@ func (d *Dispatcher) SendMessage(senderWorkerUUID, receiverWorkerUUID uuid.UUID,
 	if !exists {
 		return fmt.Errorf("worker %s does not have a mailbox", receiverWorkerUUID)
 	}
+
 	msg := MailboxMessage{
 		SenderWorkerUUID: senderWorkerUUID,
 		SendTimestamp:    time.Now(),
 		Payload:          payload,
 	}
+
 	mb.PushMessage(msg)
 	return nil
 }

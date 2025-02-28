@@ -12,8 +12,10 @@ const (
 	PanicExit
 )
 
+type InstanceServicesAPI interface{}
+
 // Worker is the interface that concrete workers implement.
 type Worker interface {
-	Run(ctx context.Context, config map[string]interface{}) (ExitCode, error)
+	Run(ctx context.Context, config map[string]interface{}, instanceServicesAPI InstanceServicesAPI) (ExitCode, error)
 	GetWorkerName() string
 }

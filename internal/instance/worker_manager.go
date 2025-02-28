@@ -92,7 +92,7 @@ func (wm *WorkerManager) StartWorker(workerUUID uuid.UUID, config map[string]int
 			}
 		}()
 
-		exitCode, err := wc.worker.Run(ctx, config)
+		exitCode, err := wc.worker.Run(ctx, config, wm)
 		wm.handleWorkerExit(workerUUID, exitCode, err)
 	}()
 }
