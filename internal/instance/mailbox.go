@@ -1,9 +1,11 @@
 package instance
 
 import (
-	"github.com/google/uuid"
+	"fmt"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // MailboxMessage represents a worker-to-worker message.
@@ -13,89 +15,69 @@ type MailboxMessage struct {
 	Payload          interface{}
 }
 
-// Mailbox holds messages for a worker.
+// Mailbox is a thread-safe, dynamically sized queue for messages.
 type Mailbox struct {
-	messages     []MailboxMessage
-	mu           sync.Mutex
-	cond         *sync.Cond
-	receiverFunc func(MailboxMessage)
-	stop         chan struct{}
-	startOnce    sync.Once
+	mu       sync.Mutex
+	cond     *sync.Cond
+	messages []MailboxMessage
+	closed   bool
 }
 
-// NewMailbox initializes a mailbox with a receiver function.
-func NewMailbox(receiverFunc func(MailboxMessage)) *Mailbox {
+// NewMailbox creates a new Mailbox.
+func NewMailbox() *Mailbox {
 	m := &Mailbox{
-		messages:     make([]MailboxMessage, 0),
-		receiverFunc: receiverFunc,
-		stop:         make(chan struct{}),
+		messages: make([]MailboxMessage, 0),
 	}
 	m.cond = sync.NewCond(&m.mu)
 	return m
 }
 
-// Start launches the mailbox processing goroutine.
-func (m *Mailbox) Start() {
-	m.startOnce.Do(func() {
-		go m.process()
-	})
-}
-
-// Stop signals the mailbox to stop processing messages.
-func (m *Mailbox) Stop() {
-	close(m.stop)
-	m.cond.Broadcast()
-}
-
-// process is the mailbox's message loop.
-func (m *Mailbox) process() {
-	for {
-		m.mu.Lock()
-		// Wait until there's a message or a stop signal.
-		for len(m.messages) == 0 {
-			select {
-			case <-m.stop:
-				m.mu.Unlock()
-				return
-			default:
-			}
-			m.cond.Wait()
-		}
-		// Dequeue the first message.
-		msg := m.messages[0]
-		m.messages = m.messages[1:]
-		// Signal potential pushers that a slot is free.
-		m.cond.Signal()
-		m.mu.Unlock()
-
-		// Process the message outside the lock.
-		m.receiverFunc(msg)
-	}
-}
-
-// PushMessage adds a message to the mailbox and signals the worker.
-func (m *Mailbox) PushMessage(msg MailboxMessage) {
+// PushMessage adds a message to the mailbox.
+// Returns an error if the mailbox has been closed.
+func (m *Mailbox) PushMessage(msg MailboxMessage) error {
 	m.mu.Lock()
-
-	select {
-	case <-m.stop:
-		m.mu.Unlock()
-		return
-	default:
+	defer m.mu.Unlock()
+	if m.closed {
+		return fmt.Errorf("mailbox is closed")
 	}
 	m.messages = append(m.messages, msg)
 	m.cond.Signal()
-	m.mu.Unlock()
+	return nil
 }
 
-// GetMessages returns the current slice of messages (for inspection).
+// Dequeue removes and returns the first message in the mailbox.
+// It blocks until a message is available or the mailbox is closed.
+// Returns (message, true) if a message was dequeued, or (zero, false)
+// if the mailbox is closed and empty.
+func (m *Mailbox) Dequeue() (MailboxMessage, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for len(m.messages) == 0 && !m.closed {
+		m.cond.Wait()
+	}
+	if len(m.messages) > 0 {
+		// Retrieve and remove the first message.
+		msg := m.messages[0]
+		// Zero out the first element for garbage collection.
+		m.messages[0] = MailboxMessage{}
+		m.messages = m.messages[1:]
+		return msg, true
+	}
+	// Mailbox closed and empty.
+	var zero MailboxMessage
+	return zero, false
+}
+
+// GetMessages returns a copy of all messages currently in the mailbox.
 func (m *Mailbox) GetMessages() []MailboxMessage {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.messages
+	cpy := make([]MailboxMessage, len(m.messages))
+	copy(cpy, m.messages)
+	return cpy
 }
 
-// GetMessageCount returns the number of messages in the mailbox.
+// GetMessageCount returns the current number of messages in the mailbox.
 func (m *Mailbox) GetMessageCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -107,4 +89,12 @@ func (m *Mailbox) ClearMailbox() {
 	m.mu.Lock()
 	m.messages = make([]MailboxMessage, 0)
 	m.mu.Unlock()
+}
+
+// Close marks the mailbox as closed and signals all waiting goroutines.
+func (m *Mailbox) Close() {
+	m.mu.Lock()
+	m.closed = true
+	m.mu.Unlock()
+	m.cond.Broadcast()
 }

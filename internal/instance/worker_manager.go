@@ -68,7 +68,7 @@ func (wm *WorkerManager) RemoveWorker(workerUUID uuid.UUID) {
 }
 
 // StartWorker starts a registered worker using its uuid and configuration.
-func (wm *WorkerManager) StartWorker(workerUUID uuid.UUID, config map[string]interface{}, workerInstanceServices worker.InstanceServices) error {
+func (wm *WorkerManager) StartWorker(workerUUID uuid.UUID, config map[string]interface{}, workerServices worker.Services) error {
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
@@ -92,7 +92,7 @@ func (wm *WorkerManager) StartWorker(workerUUID uuid.UUID, config map[string]int
 			}
 		}()
 
-		exitCode, err := wc.worker.Run(ctx, config, workerInstanceServices)
+		exitCode, err := wc.worker.Run(ctx, config, workerServices)
 		wm.handleWorkerExit(workerUUID, exitCode, err)
 	}()
 

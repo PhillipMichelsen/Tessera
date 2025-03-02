@@ -1,73 +1,34 @@
 package instance
 
-import (
-	"AlgorithmicTraderDistributed/pkg/worker"
-	"fmt"
-	"github.com/google/uuid"
-)
+import "github.com/google/uuid"
 
-// Instance represents the main high-level object for the application.
+type ControllerInterface interface {
+	Shutdown() // Shutdown gracefully stops the instance.
+	Halt()     // Halt stops the instance immediately.
+
+	CreateWorker(workerType string, workerUUID uuid.UUID) error            // CreateWorker creates a new worker.
+	RemoveWorker(workerUUID uuid.UUID) error                               // RemoveWorker removes a worker.
+	StartWorker(workerUUID uuid.UUID, config map[string]interface{}) error // StartWorker starts a worker.
+	StopWorker(workerUUID uuid.UUID) error                                 // StopWorker stops a worker.
+	GetWorkerStatus(workerUUID uuid.UUID) (string, error)                  // GetWorkerStatus returns the status of a worker.
+}
+
 type Instance struct {
-	dispatcher    *Dispatcher
 	workerManager *WorkerManager
+	dispatcher    *Dispatcher
 
-	workerFactory func(workerType string) (worker.Worker, error)
+	workerRegistry *WorkerRegistry
 }
 
 // NewInstance initializes a new instance.
-func NewInstance(workerFactory func(string) (worker.Worker, error)) *Instance {
+func NewInstance() *Instance {
 	return &Instance{
-		dispatcher:    NewDispatcher(),
-		workerManager: NewWorkerManager(),
-		workerFactory: workerFactory,
+		workerManager:  NewWorkerManager(),
+		dispatcher:     NewDispatcher(),
+		workerRegistry: NewWorkerRegistry(),
 	}
 }
 
-// Start begins processing for the dispatcher (mailboxes).
-func (i *Instance) Start() {
-	i.dispatcher.Start()
-}
+func (i *Instance) Start() {}
 
-// Stop terminates the dispatcher and stops all active workers.
-func (i *Instance) Stop() {
-	i.dispatcher.Stop()
-	workers := i.workerManager.GetWorkers()
-	for workerID := range workers {
-		err := i.workerManager.StopWorker(workerID)
-		if err != nil {
-			return
-		}
-	}
-}
-
-func (i *Instance) SpawnWorker(workerType string, workerUUID uuid.UUID) error {
-	instantiatedWorker, err := i.workerFactory(workerType)
-
-	if err != nil {
-		return fmt.Errorf("could not create worker %s: %w", workerType, err)
-	}
-
-	i.workerManager.AddWorker(workerUUID, instantiatedWorker)
-
-	return nil
-}
-
-func (i *Instance) RemoveWorker(workerUUID uuid.UUID) {
-	i.workerManager.RemoveWorker(workerUUID)
-}
-
-func (i *Instance) StartWorker(workerUUID uuid.UUID, config map[string]interface{}) error {
-	err := i.workerManager.StartWorker(workerUUID, config, i.buildWorkerInstanceServices(workerUUID))
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (i *Instance) buildWorkerInstanceServices(workerUUID uuid.UUID) worker.InstanceServices {
-	return &WorkerInstanceServices{
-		Instance:   i,
-		WorkerUUID: workerUUID,
-	}
-}
+func (i *Instance) Stop() {}
