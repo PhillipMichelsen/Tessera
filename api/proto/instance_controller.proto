@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package instance;
+
+option go_package = "AlgorithmicTraderDistributed/api/proto/generated";
+
+service InstanceService {
+  rpc CreateWorker(CreateWorkerRequest) returns (CreateWorkerResponse);
+  rpc RemoveWorker(RemoveWorkerRequest) returns (RemoveWorkerResponse);
+  rpc StartWorker(StartWorkerRequest) returns (StartWorkerResponse);
+  rpc StopWorker(StopWorkerRequest) returns (StopWorkerResponse);
+  rpc IsWorkerActive(IsWorkerActiveRequest) returns (IsWorkerActiveResponse);
+}
+
+message CreateWorkerRequest {
+  string worker_type = 1;
+  string worker_uuid = 2;
+}
+
+message CreateWorkerResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message RemoveWorkerRequest {
+  string worker_uuid = 1;
+}
+
+message RemoveWorkerResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message StartWorkerRequest {
+  string worker_uuid = 1;
+  string config = 2;
+}
+
+message StartWorkerResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message StopWorkerRequest {
+  string worker_uuid = 1;
+}
+
+message StopWorkerResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message IsWorkerActiveRequest {
+  string worker_uuid = 1;
+}
+
+message IsWorkerActiveResponse {
+  bool active = 1;
+  string error = 2;
+}

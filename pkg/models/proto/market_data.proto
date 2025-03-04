@@ -4,7 +4,7 @@ package models;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "AlgorithmicTraderDistributed/internal/models/proto/generated";
+option go_package = "AlgorithmicTraderDistributed/pkg/models/proto/generated";
 
 message MarketData {
   string uuid = 1;

@@ -41,8 +41,8 @@ func NewWorkerManager() *WorkerManager {
 	}
 }
 
-// AddWorker registers a new worker with a given uuid.
-func (wm *WorkerManager) AddWorker(workerUUID uuid.UUID, worker worker.Worker) {
+// RegisterWorker registers a new worker with a given uuid.
+func (wm *WorkerManager) RegisterWorker(workerUUID uuid.UUID, worker worker.Worker) {
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
@@ -59,12 +59,22 @@ func (wm *WorkerManager) AddWorker(workerUUID uuid.UUID, worker worker.Worker) {
 	wm.workers[workerUUID] = wc
 }
 
-// RemoveWorker removes a worker from the manager.
-func (wm *WorkerManager) RemoveWorker(workerUUID uuid.UUID) {
+// DeregisterWorker removes a worker from the manager.
+func (wm *WorkerManager) DeregisterWorker(workerUUID uuid.UUID) error {
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
+	wc, exists := wm.workers[workerUUID]
+	if !exists {
+		return fmt.Errorf("worker %s not registered", workerUUID)
+	}
+
+	if wc.status.isActive {
+		return fmt.Errorf("worker %s is active", workerUUID)
+	}
+
 	delete(wm.workers, workerUUID)
+	return nil
 }
 
 // StartWorker starts a registered worker using its uuid and configuration.
@@ -123,6 +133,18 @@ func (wm *WorkerManager) GetWorkers() map[uuid.UUID]*WorkerContainer {
 	defer wm.mu.Unlock()
 
 	return wm.workers
+}
+
+func (wm *WorkerManager) IsWorkerActive(workerUUID uuid.UUID) (bool, error) {
+	wm.mu.Lock()
+	defer wm.mu.Unlock()
+
+	wc, exists := wm.workers[workerUUID]
+	if !exists {
+		return false, fmt.Errorf("worker %s not registered", workerUUID)
+	}
+
+	return wc.status.isActive, nil
 }
 
 func (wm *WorkerManager) handleWorkerExit(workerUUID uuid.UUID, exitCode worker.ExitCode, err error) {
