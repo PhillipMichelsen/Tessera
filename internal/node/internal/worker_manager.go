@@ -1,4 +1,4 @@
-package instance
+package internal
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"AlgorithmicTraderDistributed/pkg/worker"
+	"AlgorithmicTraderDistributed/internal/worker"
 
 	"github.com/google/uuid"
 )

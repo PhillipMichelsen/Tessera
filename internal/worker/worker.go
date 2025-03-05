@@ -18,7 +18,7 @@ const (
 
 // Services defines the services (interface) that a worker can use to interact with the system.
 type Services interface {
-	SendMessage(destinationWorkerUUID uuid.UUID, payload interface{}) error
+	SendMessage(message OutboundMessage) error
 	StartReceivingMessages(receiverFunc func(message InboundMessage))
 	StopReceivingMessages()
 }
@@ -28,6 +28,11 @@ type InboundMessage struct {
 	SourceWorkerUUID uuid.UUID
 	SentTimestamp    time.Time
 	Payload          interface{}
+}
+
+type OutboundMessage struct {
+	DestinationWorkerUUID uuid.UUID
+	Payload               interface{}
 }
 
 // Worker is the interface that concrete workers implement.
