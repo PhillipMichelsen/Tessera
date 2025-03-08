@@ -1,7 +1,7 @@
 package node
 
 import (
-	"AlgorithmicTraderDistributed/internal/node/internal"
+	"AlgorithmicTraderDistributed/internal/node/communication"
 	"AlgorithmicTraderDistributed/internal/worker"
 	"github.com/google/uuid"
 )
@@ -31,7 +31,7 @@ func (ws *WorkerServices) SendMessage(message worker.OutboundMessage) error {
 // StartReceivingMessages registers a mailbox to start receiving messages.
 // It adapts the internal MailboxMessage into the worker's InboundMessage type.
 func (ws *WorkerServices) StartReceivingMessages(receiverFunc func(message worker.InboundMessage)) {
-	ws.instance.dispatcher.CreateMailbox(ws.workerUUID, func(message internal.MailboxMessage) {
+	ws.instance.dispatcher.CreateMailbox(ws.workerUUID, func(message communication.IntraNodeMessage) {
 		receiverFunc(worker.InboundMessage{
 			SourceWorkerUUID: message.SourceWorkerUUID,
 			SentTimestamp:    message.SentTimestamp,

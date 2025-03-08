@@ -35,7 +35,6 @@ type OutboundMessage struct {
 	Payload               interface{}
 }
 
-// Worker is the interface that concrete workers implement.
 type Worker interface {
 	Run(ctx context.Context, config map[string]interface{}, services Services) (ExitCode, error)
 	GetWorkerName() string
