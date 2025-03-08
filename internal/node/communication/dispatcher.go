@@ -2,10 +2,9 @@ package communication
 
 import (
 	"fmt"
+	"github.com/google/uuid"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // Dispatcher manages mailboxes and their processing.
@@ -66,7 +65,7 @@ func (d *Dispatcher) RemoveMailbox(workerID uuid.UUID) {
 }
 
 // SendMessage queues a message for delivery to the destination worker.
-func (d *Dispatcher) SendMessage(sourceWorkerUUID, destinationWorkerUUID uuid.UUID, payload interface{}) error {
+func (d *Dispatcher) SendMessage(sourceWorkerUUID, destinationWorkerUUID uuid.UUID, payload interface{}, block bool) error {
 	// Safely retrieve the mailbox channel.
 	d.mu.RLock()
 	mailbox, exists := d.mailboxes[destinationWorkerUUID]
@@ -83,13 +82,29 @@ func (d *Dispatcher) SendMessage(sourceWorkerUUID, destinationWorkerUUID uuid.UU
 		Payload:          payload,
 	}
 
-	// Use select to avoid blocking indefinitely.
-	select {
-	case mailbox <- msg:
+	if block {
+		mailbox <- msg
 		return nil
-	default:
-		return fmt.Errorf("mailbox for worker %v is not accepting messages", destinationWorkerUUID)
+	} else {
+		select {
+		case mailbox <- msg:
+			return nil
+		default:
+			return fmt.Errorf("worker %v mailbox is full", destinationWorkerUUID)
+		}
 	}
+}
+
+func (d *Dispatcher) GetMailboxLength(workerID uuid.UUID) int {
+	d.mu.RLock()
+	mailbox, exists := d.mailboxes[workerID]
+	d.mu.RUnlock()
+
+	if !exists {
+		return 0
+	}
+
+	return len(mailbox)
 }
 
 // Wait blocks until all mailbox processing goroutines have exited. Used in graceful shutdown.

@@ -15,7 +15,7 @@ type WorkerManager interface {
 }
 
 type Dispatcher interface {
-	SendMessage(sourceWorkerUUID uuid.UUID, destinationWorkerUUID uuid.UUID, payload interface{}) error
+	SendMessage(sourceWorkerUUID uuid.UUID, destinationWorkerUUID uuid.UUID, payload interface{}, block bool) error
 	CreateMailbox(workerUUID uuid.UUID, receiverFunc func(message communication.IntraNodeMessage))
 	RemoveMailbox(workerUUID uuid.UUID)
 }
