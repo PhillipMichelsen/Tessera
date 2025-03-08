@@ -34,14 +34,13 @@ func (d *Dispatcher) processMailbox(mailbox chan IntraNodeMessage, receiverFunc 
 	for msg := range mailbox {
 		receiverFunc(msg)
 	}
-	// Optionally log that mailbox processing for mailboxUUID has ended.
 }
 
 // CreateMailbox registers a worker's mailbox with its message handler.
 // It creates a new mailbox and spawns a processing goroutine.
 func (d *Dispatcher) CreateMailbox(workerUUID uuid.UUID, receiverFunc func(message IntraNodeMessage)) {
 	// Create a new mailbox channel.
-	mailbox := make(chan IntraNodeMessage)
+	mailbox := make(chan IntraNodeMessage, 1000)
 
 	d.mu.Lock()
 	d.mailboxes[workerUUID] = mailbox
@@ -93,8 +92,7 @@ func (d *Dispatcher) SendMessage(sourceWorkerUUID, destinationWorkerUUID uuid.UU
 	}
 }
 
-// Wait blocks until all mailbox processing goroutines have exited.
-// This is useful for graceful shutdown.
+// Wait blocks until all mailbox processing goroutines have exited. Used in graceful shutdown.
 func (d *Dispatcher) Wait() {
 	d.wg.Wait()
 }

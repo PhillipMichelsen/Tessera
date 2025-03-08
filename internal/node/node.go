@@ -47,10 +47,10 @@ func NewNode(workerFactory *worker.Factory) *Node {
 	}
 }
 
-// Start is a no-op for now.
+// Start is a no-op for now. Will be used to start sub-systems within the node.
 func (n *Node) Start() {}
 
-// Stop is a no-op for now.
+// Stop is a no-op for now. Will be used to stop sub-systems within the node.
 func (n *Node) Stop() {}
 
 // CreateWorker instantiates and registers a new worker.
