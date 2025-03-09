@@ -1,7 +1,6 @@
 package node
 
 import (
-	"AlgorithmicTraderDistributed/internal/node/communication"
 	"AlgorithmicTraderDistributed/internal/worker"
 	"github.com/google/uuid"
 )
@@ -23,21 +22,31 @@ func NewWorkerServices(instance *Node, workerUUID uuid.UUID) *WorkerServices {
 	}
 }
 
+// TODO: To be overhauled when the router is implemented. Currently, it sends messages directly with the dispatcher.
+
 // SendMessage sends a message to another worker.
 func (ws *WorkerServices) SendMessage(message worker.OutboundMessage) error {
-	return ws.instance.dispatcher.SendMessage(ws.workerUUID, message.DestinationWorkerUUID, message.Payload)
+	err := ws.instance.dispatcher.SendMessage(message.DestinationWorkerUUID, worker.InboundMessage{
+		SourceWorkerUUID: ws.workerUUID,
+		MessageTag:       message.MessageTag,
+		Payload:          message.Payload,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // StartReceivingMessages registers a mailbox to start receiving messages.
 // It adapts the internal MailboxMessage into the worker's InboundMessage type.
 func (ws *WorkerServices) StartReceivingMessages(receiverFunc func(message worker.InboundMessage)) {
-	ws.instance.dispatcher.CreateMailbox(ws.workerUUID, func(message communication.IntraNodeMessage) {
-		receiverFunc(worker.InboundMessage{
-			SourceWorkerUUID: message.SourceWorkerUUID,
-			SentTimestamp:    message.SentTimestamp,
-			Payload:          message.Payload,
-		})
-	})
+	ws.instance.dispatcher.CreateMailbox(
+		ws.workerUUID,
+		func(message interface{}) {
+			receiverFunc(message.(worker.InboundMessage))
+		},
+		1000,
+	)
 }
 
 // StopReceivingMessages removes the mailbox for the worker.

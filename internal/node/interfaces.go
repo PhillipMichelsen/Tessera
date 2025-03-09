@@ -1,7 +1,6 @@
 package node
 
 import (
-	"AlgorithmicTraderDistributed/internal/node/communication"
 	"AlgorithmicTraderDistributed/internal/worker"
 	"github.com/google/uuid"
 )
@@ -15,9 +14,9 @@ type WorkerManager interface {
 }
 
 type Dispatcher interface {
-	SendMessage(sourceWorkerUUID uuid.UUID, destinationWorkerUUID uuid.UUID, payload interface{}, block bool) error
-	CreateMailbox(workerUUID uuid.UUID, receiverFunc func(message communication.IntraNodeMessage))
-	RemoveMailbox(workerUUID uuid.UUID)
+	SendMessage(destinationMailboxUUID uuid.UUID, payload interface{}) error
+	CreateMailbox(mailboxUUID uuid.UUID, receiverFunc func(message interface{}), bufferSize int)
+	RemoveMailbox(mailboxUUID uuid.UUID)
 }
 
 type WorkerFactory interface {

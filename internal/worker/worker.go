@@ -3,7 +3,6 @@ package worker
 import (
 	"context"
 	"github.com/google/uuid"
-	"time"
 )
 
 // ExitCode represents the exit status of a worker.
@@ -26,12 +25,14 @@ type Services interface {
 // InboundMessage represents a message received by a worker.
 type InboundMessage struct {
 	SourceWorkerUUID uuid.UUID
-	SentTimestamp    time.Time
+	MessageTag       string
 	Payload          interface{}
 }
 
+// OutboundMessage represents a message to be sent by a worker.
 type OutboundMessage struct {
 	DestinationWorkerUUID uuid.UUID
+	MessageTag            string
 	Payload               interface{}
 }
 

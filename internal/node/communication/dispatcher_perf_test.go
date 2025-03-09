@@ -7,20 +7,22 @@ import (
 )
 
 // dummyReceiver is a no-op function that simply consumes the message.
-func dummyReceiver(msg communication.IntraNodeMessage) {
-	// minimal processing; optionally simulate work with time.Sleep, etc.
+func dummyReceiver(_ interface{}) {
+	return
 }
 
 func BenchmarkDispatcherSend(b *testing.B) {
 	// Create a new dispatcher and a mailbox for a single worker.
 	d := communication.NewDispatcher()
 	workerID := uuid.New()
-	d.CreateMailbox(workerID, dummyReceiver)
+	d.CreateMailbox(workerID, dummyReceiver, 1000)
+
+	communication.NewDispatcher()
 
 	// Reset timer to exclude setup time.
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = d.SendMessage(workerID, workerID, "benchmark payload", true)
+		_ = d.SendMessage(workerID, "test")
 	}
 	b.StopTimer()
 
