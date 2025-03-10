@@ -17,23 +17,15 @@ const (
 
 // Services defines the services (interface) that a worker can use to interact with the system.
 type Services interface {
-	SendMessage(message OutboundMessage) error
-	StartReceivingMessages(receiverFunc func(message InboundMessage))
-	StopReceivingMessages()
+	SendMessage(destinationMailboxUUID uuid.UUID, message Message) error
+	CreateMailbox(mailboxUUID uuid.UUID, receiverFunc func(message Message))
+	RemoveMailbox(mailboxUUID uuid.UUID)
 }
 
-// InboundMessage represents a message received by a worker.
-type InboundMessage struct {
-	SourceWorkerUUID uuid.UUID
-	MessageTag       string
-	Payload          interface{}
-}
-
-// OutboundMessage represents a message to be sent by a worker.
-type OutboundMessage struct {
-	DestinationWorkerUUID uuid.UUID
-	MessageTag            string
-	Payload               interface{}
+// Message represents a message that can be sent or received by a worker. Identifications of source and purpose are done via tags.
+type Message struct {
+	Tag     string
+	Payload interface{}
 }
 
 type Worker interface {

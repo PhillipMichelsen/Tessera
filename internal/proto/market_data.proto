@@ -1,10 +1,10 @@
 syntax = "proto3";
-
 package models;
+option go_package = "./proto";
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "AlgorithmicTraderDistributed/pkg/models/proto/generated";
+
 
 message MarketData {
   string uuid = 1;

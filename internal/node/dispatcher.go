@@ -1,4 +1,4 @@
-package communication
+package node
 
 import (
 	"fmt"
@@ -11,23 +11,23 @@ import (
 // continuously dequeues messages and passes them to the receiver function.
 type Dispatcher struct {
 	mu        sync.RWMutex
-	mailboxes map[uuid.UUID]chan interface{}
-	receivers map[uuid.UUID]func(message interface{})
+	mailboxes map[uuid.UUID]chan any
+	receivers map[uuid.UUID]func(message any)
 	wg        sync.WaitGroup
 }
 
 // NewDispatcher initializes the dispatcher.
 func NewDispatcher() *Dispatcher {
 	return &Dispatcher{
-		mailboxes: make(map[uuid.UUID]chan interface{}),
-		receivers: make(map[uuid.UUID]func(message interface{})),
+		mailboxes: make(map[uuid.UUID]chan any),
+		receivers: make(map[uuid.UUID]func(message any)),
 	}
 }
 
 // CreateMailbox registers a worker's mailbox with its message handler.
 // It creates a new mailbox and spawns a processing goroutine.
-func (d *Dispatcher) CreateMailbox(mailboxUUID uuid.UUID, receiverFunc func(message interface{}), bufferSize int) {
-	mailbox := make(chan interface{}, bufferSize)
+func (d *Dispatcher) CreateMailbox(mailboxUUID uuid.UUID, receiverFunc func(message any), bufferSize int) {
+	mailbox := make(chan any, bufferSize)
 
 	d.mu.Lock()
 	d.mailboxes[mailboxUUID] = mailbox
@@ -52,8 +52,8 @@ func (d *Dispatcher) RemoveMailbox(mailboxUUID uuid.UUID) {
 	d.mu.Unlock()
 }
 
-// SendMessage queues a message for delivery to the destination worker.
-func (d *Dispatcher) SendMessage(destinationMailboxUUID uuid.UUID, message interface{}) error {
+// PushMessage queues a message for delivery to the destination worker.
+func (d *Dispatcher) PushMessage(destinationMailboxUUID uuid.UUID, message any) error {
 	// Safely retrieve the mailbox channel.
 	d.mu.RLock()
 	mailbox, exists := d.mailboxes[destinationMailboxUUID]
@@ -71,10 +71,19 @@ func (d *Dispatcher) SendMessage(destinationMailboxUUID uuid.UUID, message inter
 	}
 }
 
-// GetMailboxLength returns the number of messages in a worker's mailbox.
-func (d *Dispatcher) GetMailboxLength(workerID uuid.UUID) int {
+// CheckMailboxExists checks if a mailbox exists.
+func (d *Dispatcher) CheckMailboxExists(mailboxUUID uuid.UUID) bool {
 	d.mu.RLock()
-	mailbox, exists := d.mailboxes[workerID]
+	_, exists := d.mailboxes[mailboxUUID]
+	d.mu.RUnlock()
+
+	return exists
+}
+
+// GetMailboxLength returns the number of messages in a worker's mailbox.
+func (d *Dispatcher) GetMailboxLength(mailboxUUID uuid.UUID) int {
+	d.mu.RLock()
+	mailbox, exists := d.mailboxes[mailboxUUID]
 	d.mu.RUnlock()
 
 	if !exists {
@@ -90,7 +99,7 @@ func (d *Dispatcher) Wait() {
 }
 
 // processMailbox continuously dequeues messages from a mailbox and passes them to its receiver.
-func (d *Dispatcher) processMailbox(mailbox chan interface{}, receiverFunc func(message interface{})) {
+func (d *Dispatcher) processMailbox(mailbox chan any, receiverFunc func(message any)) {
 	defer d.wg.Done()
 
 	// Process messages until the channel is closed.

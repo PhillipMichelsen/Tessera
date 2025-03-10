@@ -1,7 +1,6 @@
 package node
 
 import (
-	"AlgorithmicTraderDistributed/internal/node/communication"
 	"AlgorithmicTraderDistributed/internal/worker"
 	"context"
 	"fmt"
@@ -28,9 +27,17 @@ type WorkerContainer struct {
 	done       chan struct{}
 }
 
+type WorkerFactory interface {
+	InstantiateWorker(workerType string, workerUUID uuid.UUID) (worker.Worker, error)
+}
+
+// Assert that Node implements worker.Services.
+var _ worker.Services = (*Node)(nil)
+
 // Node represents the node which holds and manages workers.
 type Node struct {
-	dispatcher    Dispatcher
+	dispatcher *Dispatcher
+
 	workerFactory WorkerFactory
 
 	workers map[uuid.UUID]*WorkerContainer
@@ -41,7 +48,7 @@ type Node struct {
 // NewNode initializes a new Node instance.
 func NewNode(workerFactory *worker.Factory) *Node {
 	return &Node{
-		dispatcher:    communication.NewDispatcher(),
+		dispatcher:    NewDispatcher(),
 		workerFactory: workerFactory,
 		workers:       make(map[uuid.UUID]*WorkerContainer),
 	}
@@ -92,17 +99,13 @@ func (n *Node) RemoveWorker(workerUUID uuid.UUID) error {
 }
 
 // StartWorker starts a worker using its configuration and node-provided services.
-func (n *Node) StartWorker(workerUUID uuid.UUID, config map[string]interface{}) error {
+func (n *Node) StartWorker(workerUUID uuid.UUID, config map[string]any) error {
 	n.mu.Lock()
 	wc, exists := n.workers[workerUUID]
 	if !exists || wc.status.isActive {
 		n.mu.Unlock()
 		return fmt.Errorf("worker %s not registered or already active", workerUUID)
 	}
-
-	// Prepare worker services (which creates a WorkerServices to provide services of the instance to a specific worker).
-	// WorkerServices implements the worker.Services interface.
-	workerServices := NewWorkerServices(n, workerUUID)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	wc.cancelFunc = cancel
@@ -120,14 +123,14 @@ func (n *Node) StartWorker(workerUUID uuid.UUID, config map[string]interface{}) 
 			}
 		}()
 
-		exitCode, err := wc.worker.Run(ctx, config, workerServices)
+		exitCode, err := wc.worker.Run(ctx, config, n)
 		n.handleWorkerExit(workerUUID, exitCode, err)
 	}()
 
 	return nil
 }
 
-// StopWorker stops a running worker.
+// StopWorker stops a running worker. Blocks until the worker exits.
 func (n *Node) StopWorker(workerUUID uuid.UUID) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
@@ -142,6 +145,8 @@ func (n *Node) StopWorker(workerUUID uuid.UUID) error {
 	}
 
 	wc.cancelFunc()
+	<-wc.done
+
 	return nil
 }
 
@@ -156,6 +161,32 @@ func (n *Node) IsWorkerActive(workerUUID uuid.UUID) (bool, error) {
 	}
 
 	return wc.status.isActive, nil
+}
+
+func (n *Node) CreateMailbox(mailboxUUID uuid.UUID, receiverFunc func(message worker.Message)) {
+	wrapperReceiverFunc := func(message any) {
+		receiverFunc(message.(worker.Message))
+	}
+
+	n.dispatcher.CreateMailbox(mailboxUUID, wrapperReceiverFunc, 1000)
+}
+
+func (n *Node) RemoveMailbox(mailboxUUID uuid.UUID) {
+	n.dispatcher.RemoveMailbox(mailboxUUID)
+}
+
+func (n *Node) SendMessage(destinationMailboxUUID uuid.UUID, message worker.Message) error {
+	// Intra-node message case, can be directly pushed to mailbox.
+	if n.dispatcher.CheckMailboxExists(destinationMailboxUUID) {
+		return n.dispatcher.PushMessage(destinationMailboxUUID, message)
+	}
+
+	// Inter-node message case, needs to be routed through the bridge.
+	// First, resolve the destination node. Done with the cluster discovery service.
+	// Then, bridge the message to the destination node with the bridge.
+	// TODO: Implement the above.
+
+	return fmt.Errorf("unimplemented non intra-node message routing")
 }
 
 // handleWorkerExit updates the status of a worker once it exits.
@@ -176,17 +207,4 @@ func (n *Node) handleWorkerExit(workerUUID uuid.UUID, exitCode worker.ExitCode, 
 	close(wc.done)
 
 	// TODO: Add logging here
-}
-
-// blockUntilWorkerExited waits until the specified worker has exited.
-func (n *Node) blockUntilWorkerExited(workerUUID uuid.UUID) {
-	n.mu.Lock()
-	wc, exists := n.workers[workerUUID]
-	n.mu.Unlock()
-
-	if !exists {
-		return
-	}
-
-	<-wc.done
 }
