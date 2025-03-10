@@ -1,22 +1,21 @@
-package node_test
+package tests
 
 import (
+	"AlgorithmicTraderDistributed/internal/node"
 	"github.com/google/uuid"
 	"testing"
 )
 
-// dummyReceiver is a no-op function that simply consumes the message.
+// dummyReceiver is a no-op function that simply consumes the message (by returning nothing).
 func dummyReceiver(_ interface{}) {
 	return
 }
 
 func BenchmarkDispatcherSend(b *testing.B) {
 	// Create a new dispatcher and a mailbox for a single worker.
-	d := NewDispatcher()
+	d := node.NewDispatcher()
 	workerID := uuid.New()
 	d.CreateMailbox(workerID, dummyReceiver, 1000)
-
-	NewDispatcher()
 
 	// Reset timer to exclude setup time.
 	b.ResetTimer()
