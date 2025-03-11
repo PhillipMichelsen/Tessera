@@ -1,15 +1,8 @@
 package models
 
 import (
-	"github.com/google/uuid"
 	"time"
 )
-
-// MarketData Market data payload
-type MarketData struct {
-	UUID uuid.UUID   `json:"U"`
-	Data interface{} `json:"D"`
-}
 
 // OHLCV Regular OHLCV data, values are in float64 except for timestamp which is a time.Time
 type OHLCV struct {

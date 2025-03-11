@@ -133,18 +133,21 @@ func (n *Node) StartWorker(workerUUID uuid.UUID, config map[string]any) error {
 // StopWorker stops a running worker. Blocks until the worker exits.
 func (n *Node) StopWorker(workerUUID uuid.UUID) error {
 	n.mu.Lock()
-	defer n.mu.Unlock()
 
 	wc, exists := n.workers[workerUUID]
 	if !exists || !wc.status.isActive {
+		n.mu.Unlock()
 		return fmt.Errorf("worker %s not registered or not active", workerUUID)
 	}
 
 	if wc.cancelFunc == nil {
+		n.mu.Unlock()
 		return fmt.Errorf("worker %s has no cancel function", workerUUID)
 	}
 
 	wc.cancelFunc()
+
+	n.mu.Unlock()
 	<-wc.done
 
 	return nil
@@ -207,4 +210,5 @@ func (n *Node) handleWorkerExit(workerUUID uuid.UUID, exitCode worker.ExitCode, 
 	close(wc.done)
 
 	// TODO: Add logging here
+	fmt.Printf("Worker %s exited with code %d and error: %v\n", workerUUID, exitCode, err)
 }
