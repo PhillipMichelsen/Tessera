@@ -22,6 +22,7 @@ type WorkerStatus struct {
 type WorkerContainer struct {
 	uuid       uuid.UUID
 	worker     worker.Worker
+	workerType string
 	status     WorkerStatus
 	cancelFunc context.CancelFunc
 	done       chan struct{}
@@ -72,9 +73,10 @@ func (n *Node) CreateWorker(workerType string, workerUUID uuid.UUID) error {
 
 	// Skipping collision checks, a 2^128 collision is best seen as an act of god.
 	wc := &WorkerContainer{
-		uuid:   workerUUID,
-		worker: instantiatedWorker,
-		status: WorkerStatus{isActive: false},
+		uuid:       workerUUID,
+		worker:     instantiatedWorker,
+		workerType: workerType,
+		status:     WorkerStatus{isActive: false},
 	}
 	n.workers[workerUUID] = wc
 
@@ -99,7 +101,7 @@ func (n *Node) RemoveWorker(workerUUID uuid.UUID) error {
 }
 
 // StartWorker starts a worker using its configuration and node-provided services.
-func (n *Node) StartWorker(workerUUID uuid.UUID, config map[string]any) error {
+func (n *Node) StartWorker(workerUUID uuid.UUID, config any) error {
 	n.mu.Lock()
 	wc, exists := n.workers[workerUUID]
 	if !exists || wc.status.isActive {

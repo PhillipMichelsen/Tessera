@@ -5,143 +5,88 @@ import (
 	"AlgorithmicTraderDistributed/internal/worker"
 	"context"
 	"fmt"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
+	"gopkg.in/yaml.v3"
+	"time"
 )
 
-// BinanceSpotKlineToOHLCVWorkerConfig uses the worker.InputOutputMapping.
-type BinanceSpotKlineToOHLCVWorkerConfig struct {
-	InputOutputMapping worker.InputOutputMapping
-	InputMailboxUUID   uuid.UUID
+// BinanceSpotKlineToOHLCVConfig represents the YAML configuration for the worker.
+type BinanceSpotKlineToOHLCVConfig struct {
+	InputMailboxUUID   uuid.UUID `yaml:"input_mailbox_uuid"`
+	InputOutputMapping map[string]struct {
+		DestinationMailboxUUID uuid.UUID `yaml:"destination_mailbox_uuid"`
+		Tag                    string    `yaml:"tag"`
+	} `yaml:"input_output_mapping"`
 }
 
 // BinanceSpotKlineToOHLCVWorker implements the worker.Worker interface.
-type BinanceSpotKlineToOHLCVWorker struct {
-	moduleUUID uuid.UUID
-	config     BinanceSpotKlineToOHLCVWorkerConfig
+type BinanceSpotKlineToOHLCVWorker struct{}
 
-	services worker.Services
-}
-
-// NewBinanceSpotKlineToOHLCVWorker creates a new instance.
-func NewBinanceSpotKlineToOHLCVWorker(moduleUUID uuid.UUID) *BinanceSpotKlineToOHLCVWorker {
-	return &BinanceSpotKlineToOHLCVWorker{
-		moduleUUID: moduleUUID,
-	}
-}
-
-// GetWorkerName returns the worker's name.
-func (w *BinanceSpotKlineToOHLCVWorker) GetWorkerName() string {
-	return "BinanceSpotKlineToOHLCVWorker"
-}
-
-// Run parses the configuration, registers a mailbox using the input mailbox UUID,
-// and waits until the context is canceled.
-func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, config map[string]any, services worker.Services) (worker.ExitCode, error) {
-	// Parse the input_output_mapping.
-	rawMapping, ok := config["input_output_mapping"].(map[string]interface{})
+func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, config any, services worker.Services) (worker.ExitCode, error) {
+	configBytes, ok := config.([]byte)
 	if !ok {
-		return worker.RuntimeErrorExit, fmt.Errorf("invalid input_output_mapping configuration")
-	}
-	mapping := make(worker.InputOutputMapping)
-	for inputTag, rawOutputMetadata := range rawMapping {
-		metadataMap, ok := rawOutputMetadata.(map[string]any)
-		if !ok {
-			return worker.RuntimeErrorExit, fmt.Errorf("invalid mapping for tag %s", inputTag)
-		}
-		destMailboxStr, ok := metadataMap["destination_mailbox_uuid"].(string)
-		if !ok {
-			return worker.RuntimeErrorExit, fmt.Errorf("missing destination_mailbox_uuid for tag %s", inputTag)
-		}
-		destMailbox, err := uuid.Parse(destMailboxStr)
-		if err != nil {
-			return worker.RuntimeErrorExit, fmt.Errorf("invalid destination_mailbox_uuid for tag %s: %v", inputTag, err)
-		}
-		outputTag, ok := metadataMap["tag"].(string)
-		if !ok {
-			return worker.RuntimeErrorExit, fmt.Errorf("missing tag for mapping with key %s", inputTag)
-		}
-		mapping[inputTag] = worker.OutputMetadata{
-			DestinationMailboxUUID: destMailbox,
-			Tag:                    outputTag,
-		}
+		return worker.RuntimeErrorExit, fmt.Errorf("config is not in the expected []byte format")
 	}
 
-	// Parse the input mailbox UUID.
-	inputMailboxStr, ok := config["input_mailbox_uuid"].(string)
-	if !ok {
-		return worker.RuntimeErrorExit, fmt.Errorf("missing input_mailbox_uuid")
-	}
-	inputMailbox, err := uuid.Parse(inputMailboxStr)
-	if err != nil {
-		return worker.RuntimeErrorExit, fmt.Errorf("invalid input_mailbox_uuid: %v", err)
+	var cfg BinanceSpotKlineToOHLCVConfig
+	if err := yaml.Unmarshal(configBytes, &cfg); err != nil {
+		return worker.RuntimeErrorExit, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
-	// Save the parsed configuration and services.
-	w.config = BinanceSpotKlineToOHLCVWorkerConfig{
-		InputOutputMapping: mapping,
-		InputMailboxUUID:   inputMailbox,
+	inputChannel := make(chan worker.Message)
+	services.CreateMailbox(cfg.InputMailboxUUID, worker.BuildChannelMessageReceiverForwarder(inputChannel))
+
+	for {
+		select {
+		case <-ctx.Done():
+			services.RemoveMailbox(cfg.InputMailboxUUID)
+			return worker.NormalExit, nil
+		case msg := <-inputChannel:
+			// Ensure that the incoming message has a tag.
+			if msg.Tag == "" {
+				return worker.RuntimeErrorExit, fmt.Errorf("message is missing tag")
+			}
+
+			// Look up the destination mapping using the message tag.
+			mapping, ok := cfg.InputOutputMapping[msg.Tag]
+			if !ok {
+				return worker.RuntimeErrorExit, fmt.Errorf("destination mapping not found for tag: %s", msg.Tag)
+			}
+
+			ohlcv, err := w.parseJSONToOHLCV(msg.Payload.(models.SerializedJSON).JSON)
+			if err != nil {
+				return worker.RuntimeErrorExit, fmt.Errorf("failed to parse JSON to OHLCV: %w", err)
+			}
+
+			if err := services.SendMessage(mapping.DestinationMailboxUUID, worker.Message{
+				Tag:     mapping.Tag,
+				Payload: ohlcv,
+			}); err != nil {
+				return worker.RuntimeErrorExit, fmt.Errorf("failed to send message: %w", err)
+			}
+		}
 	}
-	w.services = services
-
-	// Register a mailbox using the provided input mailbox UUID.
-	services.CreateMailbox(w.config.InputMailboxUUID, w.handleMessage)
-
-	// Block until context cancellation.
-	<-ctx.Done()
-
-	// Clean up.
-	services.RemoveMailbox(w.config.InputMailboxUUID)
-	return worker.NormalExit, nil
 }
 
-// handleMessage processes an incoming worker.Message.
-func (w *BinanceSpotKlineToOHLCVWorker) handleMessage(message worker.Message) {
-	// Look up the mapping using the incoming message's tag.
-	outputMeta, exists := w.config.InputOutputMapping[message.Tag]
-	if !exists {
-		fmt.Printf("No mapping found for tag %s\n", message.Tag)
-		return
-	}
-
-	serializedJSON, ok := message.Payload.(models.SerializedJSON)
-	if !ok {
-		fmt.Printf("Invalid market data content for message with tag %s\n", message.Tag)
-		return
-	}
-
-	jsonPayload := serializedJSON.JSON
-	timestamp := gjson.Get(jsonPayload, "k.t")
-	open := gjson.Get(jsonPayload, "k.o")
-	high := gjson.Get(jsonPayload, "k.h")
-	low := gjson.Get(jsonPayload, "k.l")
-	closePrice := gjson.Get(jsonPayload, "k.c")
-	volume := gjson.Get(jsonPayload, "k.v")
+func (w *BinanceSpotKlineToOHLCVWorker) parseJSONToOHLCV(jsonStr string) (models.OHLCV, error) {
+	timestamp := gjson.Get(jsonStr, "k.t")
+	open := gjson.Get(jsonStr, "k.o")
+	high := gjson.Get(jsonStr, "k.h")
+	low := gjson.Get(jsonStr, "k.l")
+	closePrice := gjson.Get(jsonStr, "k.c")
+	volume := gjson.Get(jsonStr, "k.v")
 	if !timestamp.Exists() || !open.Exists() || !high.Exists() ||
 		!low.Exists() || !closePrice.Exists() || !volume.Exists() {
-		fmt.Printf("Missing required fields in JSON payload for tag %s: %s\n", message.Tag, jsonPayload)
-		return
+		return models.OHLCV{}, fmt.Errorf("missing required fields in JSON payload: %s", jsonStr)
 	}
 
-	ohlcv := models.OHLCV{
+	return models.OHLCV{
 		Open:      open.Float(),
 		High:      high.Float(),
 		Low:       low.Float(),
 		Close:     closePrice.Float(),
 		Volume:    volume.Float(),
-		Timestamp: time.UnixMilli(timestamp.Int()),
-	}
-
-	// Build the outgoing message with the new tag.
-	newMsg := worker.Message{
-		Tag:     outputMeta.Tag,
-		Payload: ohlcv,
-	}
-
-	// Send the new message to the destination mailbox.
-	if err := w.services.SendMessage(outputMeta.DestinationMailboxUUID, newMsg); err != nil {
-		fmt.Printf("Error sending message: %v\n", err)
-	}
+		Timestamp: time.UnixMilli(timestamp.Int()).UTC(),
+	}, nil
 }

@@ -5,10 +5,10 @@ import (
 	"AlgorithmicTraderDistributed/internal/node"
 	"AlgorithmicTraderDistributed/internal/worker"
 	"AlgorithmicTraderDistributed/internal/worker/workers"
-	"fmt"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"gopkg.in/yaml.v3"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,54 +22,64 @@ func main() {
 	// Create a new worker factory.
 	workerFactory := worker.NewFactory()
 	workerFactory.RegisterWorkerCreationFunction("BinanceSpotKlineToOHLCV", func(moduleUUID uuid.UUID) worker.Worker {
-		return workers.NewBinanceSpotKlineToOHLCVWorker(moduleUUID)
+		return &workers.BinanceSpotKlineToOHLCVWorker{}
 	})
-
-	// Add workers to the factory.
-	// workerFactory.RegisterWorker("workerType", workerConstructor)
+	workerFactory.RegisterWorkerCreationFunction("StandardOutput", func(moduleUUID uuid.UUID) worker.Worker {
+		return &workers.StandardOutputWorker{}
+	})
 
 	// Create a new node.
 	inst := node.NewNode(workerFactory)
 
 	w1UUID := uuid.New()
-	err := inst.CreateWorker("BinanceSpotKlineToOHLCV", w1UUID)
-	if err != nil {
+	w2UUID := uuid.New()
+	if err := inst.CreateWorker("BinanceSpotKlineToOHLCV", w1UUID); err != nil {
+		log.Fatal().Err(err).Msg("Failed to create worker")
+	}
+	if err := inst.CreateWorker("StandardOutput", w2UUID); err != nil {
 		log.Fatal().Err(err).Msg("Failed to create worker")
 	}
 
-	jsonStr := `{"k": {"t": 1618317040000, "o":60000, "h":61000, "l":59000, "c":60500, "v":1200}}`
-	go func() {
-		timeTrack := time.Now()
-
-		inst.CreateMailbox(uuid.MustParse("00000000-0000-0000-0000-000000000001"), func(message worker.Message) {
-			fmt.Printf("Received message: %v, Time taken: %v \n", message, time.Since(timeTrack))
-		})
-
-		for {
-			_ = inst.SendMessage(uuid.MustParse("00000000-0000-0000-0000-000000000002"), worker.Message{
-				Tag:     "test_input",
-				Payload: models.SerializedJSON{JSON: jsonStr},
-			})
-			timeTrack = time.Now()
-			time.Sleep(1 * time.Second)
-		}
-	}()
-
-	err = inst.StartWorker(w1UUID, map[string]interface{}{
-		"input_output_mapping": map[string]interface{}{
-			"test_input": map[string]interface{}{
-				"destination_mailbox_uuid": "00000000-0000-0000-0000-000000000001",
-				"tag":                      "test_output",
+	w1config := workers.BinanceSpotKlineToOHLCVConfig{
+		InputMailboxUUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		InputOutputMapping: map[string]struct {
+			DestinationMailboxUUID uuid.UUID `yaml:"destination_mailbox_uuid"`
+			Tag                    string    `yaml:"tag"`
+		}{
+			"test_input": {
+				DestinationMailboxUUID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				Tag:                    "processed_ohlcv",
 			},
 		},
-		"input_mailbox_uuid": "00000000-0000-0000-0000-000000000002",
-	})
-	if err != nil {
+	}
+
+	w2Config := workers.StandardOutputConfig{
+		MailboxUUID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+	}
+
+	w1ConfigBytes, _ := yaml.Marshal(w1config)
+	w2ConfigBytes, _ := yaml.Marshal(w2Config)
+
+	if err := inst.StartWorker(w1UUID, w1ConfigBytes); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start worker")
+	}
+	if err := inst.StartWorker(w2UUID, w2ConfigBytes); err != nil {
 		log.Fatal().Err(err).Msg("Failed to start worker")
 	}
 
 	// Start the node.
 	inst.Start()
+
+	jsonStr := `{"k": {"t": 1618317040000, "o":60000, "h":61000, "l":59000, "c":60500, "v":1200}}`
+	go func() {
+		for {
+			_ = inst.SendMessage(uuid.MustParse("00000000-0000-0000-0000-000000000001"), worker.Message{
+				Tag:     "test_input",
+				Payload: models.SerializedJSON{JSON: jsonStr},
+			})
+			time.Sleep(1 * time.Second)
+		}
+	}()
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -78,6 +88,7 @@ func main() {
 	<-signals
 
 	_ = inst.StopWorker(w1UUID)
+	_ = inst.StopWorker(w2UUID)
 	inst.Stop()
 
 	log.Info().Msg("Shutdown signal received. Initiating shutdown...")

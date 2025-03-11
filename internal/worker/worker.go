@@ -29,6 +29,5 @@ type Message struct {
 }
 
 type Worker interface {
-	Run(ctx context.Context, config map[string]any, services Services) (ExitCode, error)
-	GetWorkerName() string
+	Run(ctx context.Context, config any, services Services) (ExitCode, error)
 }

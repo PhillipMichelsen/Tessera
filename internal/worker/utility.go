@@ -1,10 +1,7 @@
 package worker
 
-import "github.com/google/uuid"
-
-type OutputMetadata struct {
-	DestinationMailboxUUID uuid.UUID
-	Tag                    string
+func BuildChannelMessageReceiverForwarder(channel chan Message) func(message Message) {
+	return func(message Message) {
+		channel <- message
+	}
 }
-
-type InputOutputMapping map[string]OutputMetadata
