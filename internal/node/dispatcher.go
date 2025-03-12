@@ -26,17 +26,21 @@ func NewDispatcher() *Dispatcher {
 
 // CreateMailbox registers a worker's mailbox with its message handler.
 // It creates a new mailbox and spawns a processing goroutine.
-func (d *Dispatcher) CreateMailbox(mailboxUUID uuid.UUID, receiverFunc func(message any), bufferSize int) {
+func (d *Dispatcher) CreateMailbox(mailboxUUID uuid.UUID, bufferSize int) {
 	mailbox := make(chan any, bufferSize)
 
 	d.mu.Lock()
 	d.mailboxes[mailboxUUID] = mailbox
-	d.receivers[mailboxUUID] = receiverFunc
 	d.wg.Add(1)
 	d.mu.Unlock()
+}
 
-	// Start processing the mailbox in its own goroutine.
-	go d.processMailbox(mailbox, receiverFunc)
+func (d *Dispatcher) GetMailboxChannel(mailboxUUID uuid.UUID) (<-chan any, bool) {
+	d.mu.RLock()
+	mailbox, exists := d.mailboxes[mailboxUUID]
+	d.mu.RUnlock()
+
+	return mailbox, exists
 }
 
 // RemoveMailbox unregisters a worker's mailbox.
@@ -71,6 +75,21 @@ func (d *Dispatcher) PushMessage(destinationMailboxUUID uuid.UUID, message any) 
 	}
 }
 
+func (d *Dispatcher) PushMessageBlocking(destinationMailboxUUID uuid.UUID, message any) error {
+	// Safely retrieve the mailbox channel.
+	d.mu.RLock()
+	mailbox, exists := d.mailboxes[destinationMailboxUUID]
+	d.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("mailbox %v does not exist", destinationMailboxUUID)
+	}
+
+	mailbox <- message
+
+	return nil
+}
+
 // CheckMailboxExists checks if a mailbox exists.
 func (d *Dispatcher) CheckMailboxExists(mailboxUUID uuid.UUID) bool {
 	d.mu.RLock()
@@ -96,14 +115,4 @@ func (d *Dispatcher) GetMailboxLength(mailboxUUID uuid.UUID) int {
 // Wait blocks until all mailbox processing goroutines have exited. Used in graceful shutdown.
 func (d *Dispatcher) Wait() {
 	d.wg.Wait()
-}
-
-// processMailbox continuously dequeues messages from a mailbox and passes them to its receiver.
-func (d *Dispatcher) processMailbox(mailbox chan any, receiverFunc func(message any)) {
-	defer d.wg.Done()
-
-	// Process messages until the channel is closed.
-	for msg := range mailbox {
-		receiverFunc(msg)
-	}
 }

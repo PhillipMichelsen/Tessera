@@ -17,8 +17,9 @@ const (
 
 // Services defines the services (interface) that a worker can use to interact with the system.
 type Services interface {
-	SendMessage(destinationMailboxUUID uuid.UUID, message Message) error
-	CreateMailbox(mailboxUUID uuid.UUID, receiverFunc func(message Message))
+	SendMessage(destinationMailboxUUID uuid.UUID, message Message, block bool) error
+	CreateMailbox(mailboxUUID uuid.UUID, bufferSize int)
+	GetMailboxChannel(mailboxUUID uuid.UUID) (<-chan any, bool)
 	RemoveMailbox(mailboxUUID uuid.UUID)
 }
 

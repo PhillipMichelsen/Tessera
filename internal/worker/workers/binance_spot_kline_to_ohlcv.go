@@ -14,39 +14,53 @@ import (
 // BinanceSpotKlineToOHLCVConfig represents the YAML configuration for the worker.
 type BinanceSpotKlineToOHLCVConfig struct {
 	InputMailboxUUID   uuid.UUID `yaml:"input_mailbox_uuid"`
+	InputMailboxBuffer int       `yaml:"input_mailbox_buffer"`
 	InputOutputMapping map[string]struct {
 		DestinationMailboxUUID uuid.UUID `yaml:"destination_mailbox_uuid"`
 		Tag                    string    `yaml:"tag"`
 	} `yaml:"input_output_mapping"`
+	BlockingSend bool `yaml:"blocking_send"`
 }
 
 // BinanceSpotKlineToOHLCVWorker implements the worker.Worker interface.
-type BinanceSpotKlineToOHLCVWorker struct {}
+type BinanceSpotKlineToOHLCVWorker struct{}
 
 func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, rawConfig any, services worker.Services) (worker.ExitCode, error) {
 	config, err := w.parseRawConfig(rawConfig)
 	if err != nil {
 		return worker.RuntimeErrorExit, fmt.Errorf("failed to parse raw config: %w", err)
 	}
-	
 
-	inputChannel := make(chan worker.Message)
-	defer close(inputChannel)
-
-	services.CreateMailbox(config.InputMailboxUUID, worker.BuildChannelMessageReceiverForwarder(inputChannel))
+	services.CreateMailbox(config.InputMailboxUUID, config.InputMailboxBuffer)
+	mainInputChannel, ok := services.GetMailboxChannel(config.InputMailboxUUID)
+	if !ok {
+		return worker.RuntimeErrorExit, fmt.Errorf("failed to get input mailbox channel")
+	}
+	defer services.RemoveMailbox(config.InputMailboxUUID)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return worker.NormalExit, nil
-		case msg := <-inputChannel:
-			// Find the output destination and new tag for the received message given its tag.
-			mappedOutput, ok := config.InputOutputMapping[msg.Tag]
+		case rawMessage, ok := <-mainInputChannel:
+			// Check if the main input channel is closed.
 			if !ok {
-				return worker.RuntimeErrorExit, fmt.Errorf("destination mapping not found for tag: %s", msg.Tag)
+				return worker.PrematureExit, fmt.Errorf("main input channel closed")
 			}
 
-			ohlcv, err := w.parseJSONToOHLCV(msg.Payload.(models.SerializedJSON).JSON)
+			// Cast message to worker.Message.
+			message, ok := rawMessage.(worker.Message)
+			if !ok {
+				return worker.RuntimeErrorExit, fmt.Errorf("message is not of type worker.Message")
+			}
+
+			// Find the output destination and new tag for the received message given its tag.
+			mappedOutput, ok := config.InputOutputMapping[message.Tag]
+			if !ok {
+				return worker.RuntimeErrorExit, fmt.Errorf("destination mapping not found for tag: %s", message.Tag)
+			}
+
+			ohlcv, err := w.parseJSONToOHLCV(message.Payload.(models.SerializedJSON).JSON)
 			if err != nil {
 				return worker.RuntimeErrorExit, fmt.Errorf("failed to parse JSON to OHLCV: %w", err)
 			}
@@ -54,8 +68,8 @@ func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, rawConfig any, 
 			if err := services.SendMessage(mappedOutput.DestinationMailboxUUID, worker.Message{
 				Tag:     mappedOutput.Tag,
 				Payload: ohlcv,
-			}); err != nil {
-				return worker.RuntimeErrorExit, fmt.Errorf("failed to send message: %w", err)
+			}, config.BlockingSend); err != nil {
+				return worker.RuntimeErrorExit, fmt.Errorf("failed to send message blocking: %w", err)
 			}
 		}
 	}
@@ -70,6 +84,20 @@ func (w *BinanceSpotKlineToOHLCVWorker) parseRawConfig(rawConfig any) (BinanceSp
 	var config BinanceSpotKlineToOHLCVConfig
 	if err := yaml.Unmarshal(configBytes, &config); err != nil {
 		return BinanceSpotKlineToOHLCVConfig{}, fmt.Errorf("failed to unmarshal configuration: %w", err)
+	}
+
+	if config.InputMailboxUUID == uuid.Nil {
+		return BinanceSpotKlineToOHLCVConfig{}, fmt.Errorf("input_mailbox_uuid is required in configuration")
+	}
+
+	if len(config.InputOutputMapping) == 0 {
+		return BinanceSpotKlineToOHLCVConfig{}, fmt.Errorf("input_output_mapping is required in configuration")
+	}
+
+	for tag, mapping := range config.InputOutputMapping {
+		if mapping.DestinationMailboxUUID == uuid.Nil {
+			return BinanceSpotKlineToOHLCVConfig{}, fmt.Errorf("destination_mailbox_uuid is required for tag: %s", tag)
+		}
 	}
 
 	return config, nil

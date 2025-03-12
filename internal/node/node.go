@@ -71,7 +71,7 @@ func (n *Node) CreateWorker(workerType string, workerUUID uuid.UUID) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	// Skipping collision checks, 2^128 collision is too unlikely. 
+	// Skipping collision checks, 2^128 collision is too unlikely.
 	wc := &WorkerContainer{
 		uuid:       workerUUID,
 		worker:     instantiatedWorker,
@@ -168,22 +168,26 @@ func (n *Node) IsWorkerActive(workerUUID uuid.UUID) (bool, error) {
 	return wc.status.isActive, nil
 }
 
-func (n *Node) CreateMailbox(mailboxUUID uuid.UUID, receiverFunc func(message worker.Message)) {
-	wrapperReceiverFunc := func(message any) {
-		receiverFunc(message.(worker.Message))
-	}
+func (n *Node) CreateMailbox(mailboxUUID uuid.UUID, bufferSize int) {
+	n.dispatcher.CreateMailbox(mailboxUUID, bufferSize)
+}
 
-	n.dispatcher.CreateMailbox(mailboxUUID, wrapperReceiverFunc, 1000)
+func (n *Node) GetMailboxChannel(mailboxUUID uuid.UUID) (<-chan any, bool) {
+	return n.dispatcher.GetMailboxChannel(mailboxUUID)
 }
 
 func (n *Node) RemoveMailbox(mailboxUUID uuid.UUID) {
 	n.dispatcher.RemoveMailbox(mailboxUUID)
 }
 
-func (n *Node) SendMessage(destinationMailboxUUID uuid.UUID, message worker.Message) error {
+func (n *Node) SendMessage(destinationMailboxUUID uuid.UUID, message worker.Message, block bool) error {
 	// Intra-node message case, can be directly pushed to mailbox.
 	if n.dispatcher.CheckMailboxExists(destinationMailboxUUID) {
-		return n.dispatcher.PushMessage(destinationMailboxUUID, message)
+		if block {
+			return n.dispatcher.PushMessageBlocking(destinationMailboxUUID, message)
+		} else {
+			return n.dispatcher.PushMessage(destinationMailboxUUID, message)
+		}
 	}
 
 	// Inter-node message case, needs to be routed through the bridge.
