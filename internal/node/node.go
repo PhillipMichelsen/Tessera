@@ -71,7 +71,7 @@ func (n *Node) CreateWorker(workerType string, workerUUID uuid.UUID) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	// Skipping collision checks, a 2^128 collision is best seen as an act of god.
+	// Skipping collision checks, 2^128 collision is too unlikely. 
 	wc := &WorkerContainer{
 		uuid:       workerUUID,
 		worker:     instantiatedWorker,
@@ -101,7 +101,7 @@ func (n *Node) RemoveWorker(workerUUID uuid.UUID) error {
 }
 
 // StartWorker starts a worker using its configuration and node-provided services.
-func (n *Node) StartWorker(workerUUID uuid.UUID, config any) error {
+func (n *Node) StartWorker(workerUUID uuid.UUID, rawConfig any) error {
 	n.mu.Lock()
 	wc, exists := n.workers[workerUUID]
 	if !exists || wc.status.isActive {
@@ -125,7 +125,7 @@ func (n *Node) StartWorker(workerUUID uuid.UUID, config any) error {
 			}
 		}()
 
-		exitCode, err := wc.worker.Run(ctx, config, n)
+		exitCode, err := wc.worker.Run(ctx, rawConfig, n)
 		n.handleWorkerExit(workerUUID, exitCode, err)
 	}()
 

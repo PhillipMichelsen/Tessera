@@ -21,35 +21,27 @@ type BinanceSpotKlineToOHLCVConfig struct {
 }
 
 // BinanceSpotKlineToOHLCVWorker implements the worker.Worker interface.
-type BinanceSpotKlineToOHLCVWorker struct{}
+type BinanceSpotKlineToOHLCVWorker struct {}
 
-func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, config any, services worker.Services) (worker.ExitCode, error) {
-	configBytes, ok := config.([]byte)
-	if !ok {
-		return worker.RuntimeErrorExit, fmt.Errorf("config is not in the expected []byte format")
+func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, rawConfig any, services worker.Services) (worker.ExitCode, error) {
+	config, err := w.parseRawConfig(rawConfig)
+	if err != nil {
+		return worker.RuntimeErrorExit, fmt.Errorf("failed to parse raw config: %w", err)
 	}
-
-	var cfg BinanceSpotKlineToOHLCVConfig
-	if err := yaml.Unmarshal(configBytes, &cfg); err != nil {
-		return worker.RuntimeErrorExit, fmt.Errorf("failed to unmarshal configuration: %w", err)
-	}
+	
 
 	inputChannel := make(chan worker.Message)
-	services.CreateMailbox(cfg.InputMailboxUUID, worker.BuildChannelMessageReceiverForwarder(inputChannel))
+	defer close(inputChannel)
+
+	services.CreateMailbox(config.InputMailboxUUID, worker.BuildChannelMessageReceiverForwarder(inputChannel))
 
 	for {
 		select {
 		case <-ctx.Done():
-			services.RemoveMailbox(cfg.InputMailboxUUID)
 			return worker.NormalExit, nil
 		case msg := <-inputChannel:
-			// Ensure that the incoming message has a tag.
-			if msg.Tag == "" {
-				return worker.RuntimeErrorExit, fmt.Errorf("message is missing tag")
-			}
-
-			// Look up the destination mapping using the message tag.
-			mapping, ok := cfg.InputOutputMapping[msg.Tag]
+			// Find the output destination and new tag for the received message given its tag.
+			mappedOutput, ok := config.InputOutputMapping[msg.Tag]
 			if !ok {
 				return worker.RuntimeErrorExit, fmt.Errorf("destination mapping not found for tag: %s", msg.Tag)
 			}
@@ -59,14 +51,28 @@ func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, config any, ser
 				return worker.RuntimeErrorExit, fmt.Errorf("failed to parse JSON to OHLCV: %w", err)
 			}
 
-			if err := services.SendMessage(mapping.DestinationMailboxUUID, worker.Message{
-				Tag:     mapping.Tag,
+			if err := services.SendMessage(mappedOutput.DestinationMailboxUUID, worker.Message{
+				Tag:     mappedOutput.Tag,
 				Payload: ohlcv,
 			}); err != nil {
 				return worker.RuntimeErrorExit, fmt.Errorf("failed to send message: %w", err)
 			}
 		}
 	}
+}
+
+func (w *BinanceSpotKlineToOHLCVWorker) parseRawConfig(rawConfig any) (BinanceSpotKlineToOHLCVConfig, error) {
+	configBytes, ok := rawConfig.([]byte)
+	if !ok {
+		return BinanceSpotKlineToOHLCVConfig{}, fmt.Errorf("config is not in the expected []byte format")
+	}
+
+	var config BinanceSpotKlineToOHLCVConfig
+	if err := yaml.Unmarshal(configBytes, &config); err != nil {
+		return BinanceSpotKlineToOHLCVConfig{}, fmt.Errorf("failed to unmarshal configuration: %w", err)
+	}
+
+	return config, nil
 }
 
 func (w *BinanceSpotKlineToOHLCVWorker) parseJSONToOHLCV(jsonStr string) (models.OHLCV, error) {
