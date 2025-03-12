@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 // Dispatcher manages mailboxes and their processing.
 // For each mailbox it creates, it spawns a goroutine that
 // continuously dequeues messages and passes them to the receiver function.
 type Dispatcher struct {
-	mu        sync.RWMutex
-	mailboxes map[uuid.UUID]chan any
-	receivers map[uuid.UUID]func(message any)
-	wg        sync.WaitGroup
+	mu         sync.RWMutex
+	mailboxes  map[uuid.UUID]chan any
+	receivers  map[uuid.UUID]func(message any)
+	wg         sync.WaitGroup
+	pushCounts map[uuid.UUID]*int64
 }
 
 // NewDispatcher initializes the dispatcher.
@@ -31,6 +34,11 @@ func (d *Dispatcher) CreateMailbox(mailboxUUID uuid.UUID, bufferSize int) {
 
 	d.mu.Lock()
 	d.mailboxes[mailboxUUID] = mailbox
+	if d.pushCounts == nil {
+		d.pushCounts = make(map[uuid.UUID]*int64)
+	}
+
+	d.pushCounts[mailboxUUID] = new(int64)
 	d.wg.Add(1)
 	d.mu.Unlock()
 }
@@ -58,17 +66,18 @@ func (d *Dispatcher) RemoveMailbox(mailboxUUID uuid.UUID) {
 
 // PushMessage queues a message for delivery to the destination worker.
 func (d *Dispatcher) PushMessage(destinationMailboxUUID uuid.UUID, message any) error {
-	// Safely retrieve the mailbox channel.
 	d.mu.RLock()
 	mailbox, exists := d.mailboxes[destinationMailboxUUID]
+	counter, countExists := d.pushCounts[destinationMailboxUUID]
 	d.mu.RUnlock()
 
-	if !exists {
+	if !exists || !countExists {
 		return fmt.Errorf("mailbox %v does not exist", destinationMailboxUUID)
 	}
 
 	select {
 	case mailbox <- message:
+		atomic.AddInt64(counter, 1)
 		return nil
 	default:
 		return fmt.Errorf("mailbox %v is full", destinationMailboxUUID)
@@ -76,17 +85,17 @@ func (d *Dispatcher) PushMessage(destinationMailboxUUID uuid.UUID, message any) 
 }
 
 func (d *Dispatcher) PushMessageBlocking(destinationMailboxUUID uuid.UUID, message any) error {
-	// Safely retrieve the mailbox channel.
 	d.mu.RLock()
 	mailbox, exists := d.mailboxes[destinationMailboxUUID]
+	counter, countExists := d.pushCounts[destinationMailboxUUID]
 	d.mu.RUnlock()
 
-	if !exists {
+	if !exists || !countExists {
 		return fmt.Errorf("mailbox %v does not exist", destinationMailboxUUID)
 	}
 
 	mailbox <- message
-
+	atomic.AddInt64(counter, 1)
 	return nil
 }
 
@@ -115,4 +124,20 @@ func (d *Dispatcher) GetMailboxLength(mailboxUUID uuid.UUID) int {
 // Wait blocks until all mailbox processing goroutines have exited. Used in graceful shutdown.
 func (d *Dispatcher) Wait() {
 	d.wg.Wait()
+}
+
+func (d *Dispatcher) LogPushRates() {
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		d.mu.RLock()
+		for _, counter := range d.pushCounts {
+			// atomically retrieve and reset the counter.
+			count := atomic.SwapInt64(counter, 0)
+			fmt.Printf("%d, ", count)
+		}
+		fmt.Println()
+		d.mu.RUnlock()
+	}
 }

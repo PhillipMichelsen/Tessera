@@ -56,7 +56,9 @@ func NewNode(workerFactory *worker.Factory) *Node {
 }
 
 // Start is a no-op for now. Will be used to start sub-systems within the node.
-func (n *Node) Start() {}
+func (n *Node) Start() {
+	go n.dispatcher.LogPushRates()
+}
 
 // Stop is a no-op for now. Will be used to stop sub-systems within the node.
 func (n *Node) Stop() {}

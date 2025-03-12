@@ -1,7 +1,6 @@
 package main
 
 import (
-	"AlgorithmicTraderDistributed/internal/models"
 	"AlgorithmicTraderDistributed/internal/node"
 	"AlgorithmicTraderDistributed/internal/worker"
 	"AlgorithmicTraderDistributed/internal/worker/workers"
@@ -12,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
 
 func main() {
@@ -21,8 +19,14 @@ func main() {
 
 	// Create a new worker factory.
 	workerFactory := worker.NewFactory()
+	workerFactory.RegisterWorkerCreationFunction("BinanceSpotWebsocket", func(moduleUUID uuid.UUID) worker.Worker {
+		return &workers.BinanceSpotWebsocketWorker{}
+	})
 	workerFactory.RegisterWorkerCreationFunction("BinanceSpotKlineToOHLCV", func(moduleUUID uuid.UUID) worker.Worker {
 		return &workers.BinanceSpotKlineToOHLCVWorker{}
+	})
+	workerFactory.RegisterWorkerCreationFunction("BinanceSpotBookTickerToBookTicker", func(moduleUUID uuid.UUID) worker.Worker {
+		return &workers.BinanceSpotBookTickerToBookTickerWorker{}
 	})
 	workerFactory.RegisterWorkerCreationFunction("StandardOutput", func(moduleUUID uuid.UUID) worker.Worker {
 		return &workers.StandardOutputWorker{}
@@ -33,35 +37,60 @@ func main() {
 
 	w1UUID := uuid.New()
 	w2UUID := uuid.New()
-	if err := inst.CreateWorker("BinanceSpotKlineToOHLCV", w1UUID); err != nil {
+	w3UUID := uuid.New()
+	if err := inst.CreateWorker("BinanceSpotWebsocket", w1UUID); err != nil {
 		log.Fatal().Err(err).Msg("Failed to create worker")
 	}
-	if err := inst.CreateWorker("StandardOutput", w2UUID); err != nil {
+	if err := inst.CreateWorker("BinanceSpotBookTickerToBookTicker", w2UUID); err != nil {
+		log.Fatal().Err(err).Msg("Failed to create worker")
+	}
+	if err := inst.CreateWorker("StandardOutput", w3UUID); err != nil {
 		log.Fatal().Err(err).Msg("Failed to create worker")
 	}
 
-	w1config := workers.BinanceSpotKlineToOHLCVConfig{
+	w1Config := workers.BinanceSpotWebsocketWorkerConfig{
+		BaseURL: "stream.binance.com:9443",
+		StreamsOutputMapping: map[string][]struct {
+			MailboxUUID uuid.UUID `yaml:"mailbox_uuid"`
+			Tag         string    `yaml:"tag"`
+		}{
+			"btcusdt@bookTicker": {
+				{
+					MailboxUUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+					Tag:         "test_input",
+				},
+			},
+		},
+		BlockingSend: false,
+	}
+
+	w2Config := workers.BinanceSpotBookTickerToBookTickerConfig{
 		InputMailboxUUID:   uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 		InputMailboxBuffer: 1000,
 		InputOutputMapping: map[string]struct {
-			DestinationMailboxUUID uuid.UUID `yaml:"destination_mailbox_uuid"`
-			Tag                    string    `yaml:"tag"`
+			MailboxUUID uuid.UUID `yaml:"mailbox_uuid"`
+			Tag         string    `yaml:"tag"`
 		}{
 			"test_input": {
-				DestinationMailboxUUID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-				Tag:                    "processed_ohlcv",
+				MailboxUUID: uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+				Tag:         "processed_book_ticker",
 			},
 		},
+		BlockingSend: false,
 	}
 
-	w2Config := workers.StandardOutputConfig{
+	w3Config := workers.StandardOutputConfig{
 		InputMailboxUUID:   uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 		InputMailboxBuffer: 1000,
 	}
 
-	w1ConfigBytes, _ := yaml.Marshal(w1config)
+	w1ConfigBytes, _ := yaml.Marshal(w1Config)
 	w2ConfigBytes, _ := yaml.Marshal(w2Config)
+	w3ConfigBytes, _ := yaml.Marshal(w3Config)
 
+	if err := inst.StartWorker(w3UUID, w3ConfigBytes); err != nil {
+		log.Fatal().Err(err).Msg("Failed to start worker")
+	}
 	if err := inst.StartWorker(w2UUID, w2ConfigBytes); err != nil {
 		log.Fatal().Err(err).Msg("Failed to start worker")
 	}
@@ -70,21 +99,7 @@ func main() {
 	}
 
 	// Start the node.
-	inst.Start()
-
-	jsonStr := `{"k": {"t": 1618317040000, "o":60000, "h":61000, "l":59000, "c":60500, "v":1200}}`
-	go func() {
-		for {
-			if err := inst.SendMessage(uuid.MustParse("00000000-0000-0000-0000-000000000001"), worker.Message{
-				Tag:     "test_input",
-				Payload: models.SerializedJSON{JSON: jsonStr},
-			}, false); err != nil {
-				log.Error().Err(err).Msg("Failed to send message")
-			}
-
-			time.Sleep(1 * time.Second)
-		}
-	}()
+	//inst.Start()
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
@@ -94,6 +109,7 @@ func main() {
 
 	_ = inst.StopWorker(w1UUID)
 	_ = inst.StopWorker(w2UUID)
+	_ = inst.StopWorker(w3UUID)
 	inst.Stop()
 
 	log.Info().Msg("Shutdown signal received. Initiating shutdown...")

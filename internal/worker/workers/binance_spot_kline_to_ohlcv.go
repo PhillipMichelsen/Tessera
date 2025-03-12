@@ -16,8 +16,8 @@ type BinanceSpotKlineToOHLCVConfig struct {
 	InputMailboxUUID   uuid.UUID `yaml:"input_mailbox_uuid"`
 	InputMailboxBuffer int       `yaml:"input_mailbox_buffer"`
 	InputOutputMapping map[string]struct {
-		DestinationMailboxUUID uuid.UUID `yaml:"destination_mailbox_uuid"`
-		Tag                    string    `yaml:"tag"`
+		MailboxUUID uuid.UUID `yaml:"mailbox_uuid"`
+		Tag         string    `yaml:"tag"`
 	} `yaml:"input_output_mapping"`
 	BlockingSend bool `yaml:"blocking_send"`
 }
@@ -32,7 +32,7 @@ func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, rawConfig any, 
 	}
 
 	services.CreateMailbox(config.InputMailboxUUID, config.InputMailboxBuffer)
-	mainInputChannel, ok := services.GetMailboxChannel(config.InputMailboxUUID)
+	inputChannel, ok := services.GetMailboxChannel(config.InputMailboxUUID)
 	if !ok {
 		return worker.RuntimeErrorExit, fmt.Errorf("failed to get input mailbox channel")
 	}
@@ -42,7 +42,7 @@ func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, rawConfig any, 
 		select {
 		case <-ctx.Done():
 			return worker.NormalExit, nil
-		case rawMessage, ok := <-mainInputChannel:
+		case rawMessage, ok := <-inputChannel:
 			// Check if the main input channel is closed.
 			if !ok {
 				return worker.PrematureExit, fmt.Errorf("main input channel closed")
@@ -65,7 +65,7 @@ func (w *BinanceSpotKlineToOHLCVWorker) Run(ctx context.Context, rawConfig any, 
 				return worker.RuntimeErrorExit, fmt.Errorf("failed to parse JSON to OHLCV: %w", err)
 			}
 
-			if err := services.SendMessage(mappedOutput.DestinationMailboxUUID, worker.Message{
+			if err := services.SendMessage(mappedOutput.MailboxUUID, worker.Message{
 				Tag:     mappedOutput.Tag,
 				Payload: ohlcv,
 			}, config.BlockingSend); err != nil {
@@ -95,8 +95,8 @@ func (w *BinanceSpotKlineToOHLCVWorker) parseRawConfig(rawConfig any) (BinanceSp
 	}
 
 	for tag, mapping := range config.InputOutputMapping {
-		if mapping.DestinationMailboxUUID == uuid.Nil {
-			return BinanceSpotKlineToOHLCVConfig{}, fmt.Errorf("destination_mailbox_uuid is required for tag: %s", tag)
+		if mapping.MailboxUUID == uuid.Nil {
+			return BinanceSpotKlineToOHLCVConfig{}, fmt.Errorf("mailbox_uuid is required for tag: %s", tag)
 		}
 	}
 

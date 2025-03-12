@@ -40,6 +40,7 @@ func (w *StandardOutputWorker) Run(ctx context.Context, rawConfig any, services 
 			services.RemoveMailbox(config.InputMailboxUUID)
 			return worker.NormalExit, nil
 		case msg := <-inputChannel:
+			//_ = msg
 			fmt.Printf("[%s] Received message: %+v\n", time.Now().Format("15:04:05"), msg)
 		}
 	}
