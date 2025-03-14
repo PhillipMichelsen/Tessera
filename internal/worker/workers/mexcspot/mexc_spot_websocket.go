@@ -82,9 +82,15 @@ func (w *MEXCSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, servic
 		case err := <-errCh:
 			return worker.RuntimeErrorExit, fmt.Errorf("failed to read message: %w", err)
 		case message := <-msgCh:
+			if len(message) > 0 && message[0] == '{' && message[len(message)-1] == '}' {
+				fmt.Printf("Received subscription response: %+v\n", string(message))
+				continue
+			}
+
+			// Otherwise, assume it's a protobuf message.
 			var msg protos.PushDataV3ApiWrapper
 			if err := proto.Unmarshal(message, &msg); err != nil {
-				return worker.RuntimeErrorExit, fmt.Errorf("failed to unmarshal message: %w", err)
+				return worker.RuntimeErrorExit, fmt.Errorf("failed to unmarshal protobuf message: %w", err)
 			}
 
 			if err := services.SendMessage(uuid.MustParse("00000000-0000-0000-0000-000000000002"), worker.Message{
@@ -95,6 +101,7 @@ func (w *MEXCSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, servic
 			}
 		}
 	}
+
 }
 
 // parseRawConfig converts the raw YAML configuration into MEXCSpotWebsocketWorkerConfig.

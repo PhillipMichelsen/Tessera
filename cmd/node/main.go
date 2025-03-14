@@ -57,7 +57,7 @@ func main() {
 			MailboxUUID uuid.UUID `yaml:"mailbox_uuid"`
 			Tag         string    `yaml:"tag"`
 		}{
-			"spot@public.aggre.bookTicker.v3.api.pb@100ms@BTCUSDT": {
+			"spot@public.aggre.bookTicker.v3.api.pb@10ms@BTCUSDT": {
 				MailboxUUID: uuid.MustParse("00000000-0000-0000-0000-000000000000"),
 				Tag:         "test_input",
 			},
