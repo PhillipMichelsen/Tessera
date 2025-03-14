@@ -15,6 +15,16 @@ func NewFactory() *Factory {
 	}
 }
 
+func CombineFactories(factories ...*Factory) *Factory {
+	newFactory := NewFactory()
+	for _, factory := range factories {
+		for workerType, creationFunc := range factory.workerCreationFunctions {
+			newFactory.RegisterWorkerCreationFunction(workerType, creationFunc)
+		}
+	}
+	return newFactory
+}
+
 func (wf *Factory) RegisterWorkerCreationFunction(workerType string, creationFunc func(uuid uuid.UUID) Worker) {
 	wf.workerCreationFunctions[workerType] = creationFunc
 }

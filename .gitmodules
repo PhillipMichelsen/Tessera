@@ -1,0 +1,3 @@
+[submodule "internal/protos/mexc"]
+	path = internal/protos/mexc
+	url = https://github.com/mexcdevelop/websocket-proto

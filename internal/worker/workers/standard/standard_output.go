@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
-	"time"
 )
 
 // StandardOutputConfig represents the YAML configuration for the StandardOutputWorker.
@@ -40,8 +39,8 @@ func (w *StandardOutputWorker) Run(ctx context.Context, rawConfig any, services 
 			services.RemoveMailbox(config.InputMailboxUUID)
 			return worker.NormalExit, nil
 		case msg := <-inputChannel:
-			//_ = msg
-			fmt.Printf("[%s] Received message: %+v\n", time.Now().Format("15:04:05"), msg)
+			// _ = msg
+			fmt.Printf("%+v\n", msg)
 		}
 	}
 }

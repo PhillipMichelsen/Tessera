@@ -4,7 +4,7 @@
 // 	protoc        v4.25.2
 // source: internal/proto/market_data.proto
 
-package proto
+package protos
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

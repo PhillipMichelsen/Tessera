@@ -16,9 +16,10 @@ type OHLCV struct {
 
 // Trade A single (or aggregated, depends on context) trade, values are in float64 except for timestamp which is a time.Time
 type Trade struct {
-	Price     float64   `json:"P"`
-	Quantity  float64   `json:"Q"`
-	Timestamp time.Time `json:"T"`
+	Price              float64   `json:"P"`
+	Quantity           float64   `json:"Q"`
+	BuyerIsMarketMaker bool      `json:"M"`
+	Timestamp          time.Time `json:"T"`
 }
 
 // BookTicker Top of the book ticker, values are in float64 except for timestamp which is a time.Time
@@ -36,15 +37,8 @@ type OrderBookEntry struct {
 	Quantity float64 `json:"Q"`
 }
 
-// OrderBookUpdate New order book update, values are in float64 except for timestamp which is a time.Time
-type OrderBookUpdate struct {
-	AskUpdates []OrderBookEntry `json:"A"`
-	BidUpdates []OrderBookEntry `json:"B"`
-	Timestamp  time.Time        `json:"T"`
-}
-
-// OrderBookSnapshot Order book snapshot, values are in float64 except for timestamp which is a time.Time
-type OrderBookSnapshot struct {
+// OrderBook A snapshot of the order book (although it can be used for updates as well), values are in float64 except for timestamp which is a time.Time
+type OrderBook struct {
 	Asks      []OrderBookEntry `json:"A"`
 	Bids      []OrderBookEntry `json:"B"`
 	Timestamp time.Time        `json:"T"`
