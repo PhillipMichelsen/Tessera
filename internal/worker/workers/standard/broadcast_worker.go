@@ -11,9 +11,10 @@ import (
 
 // BroadcastWorkerConfig defines the YAML configuration for mapping input tags to destination mailbox UUIDs.
 type BroadcastWorkerConfig struct {
-	InputMailboxUUID uuid.UUID              `yaml:"input_mailbox_uuid"`
-	TagDestinations  map[string][]uuid.UUID `yaml:"tag_destinations"`
-	BlockingSend     bool                   `yaml:"blocking_send"`
+	InputMailboxUUID   uuid.UUID              `yaml:"input_mailbox_uuid"`
+	InputMailboxBuffer int                    `yaml:"input_mailbox_buffer"`
+	TagDestinations    map[string][]uuid.UUID `yaml:"tag_destinations"`
+	BlockingSend       bool                   `yaml:"blocking_send"`
 }
 
 // BroadcastWorker takes a message from an input mailbox and broadcasts it to multiple destination mailboxes based on the message's tag.
@@ -25,10 +26,10 @@ func (w *BroadcastWorker) Run(ctx context.Context, rawConfig any, services worke
 		return worker.RuntimeErrorExit, fmt.Errorf("failed to parse config: %w", err)
 	}
 
-	// Retrieve the input mailbox channel.
-	msgCh, exists := services.GetMailboxChannel(config.InputMailboxUUID)
-	if !exists {
-		return worker.RuntimeErrorExit, fmt.Errorf("input mailbox channel not found: %s", config.InputMailboxUUID)
+	inputChannel, err := services.CreateMailbox(config.InputMailboxUUID, config.InputMailboxBuffer)
+	defer services.RemoveMailbox(config.InputMailboxUUID)
+	if err != nil {
+		return worker.RuntimeErrorExit, fmt.Errorf("failed to create input mailbox: %w", err)
 	}
 
 	// Process messages from the input mailbox.
@@ -36,7 +37,7 @@ func (w *BroadcastWorker) Run(ctx context.Context, rawConfig any, services worke
 		select {
 		case <-ctx.Done():
 			return worker.NormalExit, nil
-		case msg, ok := <-msgCh:
+		case msg, ok := <-inputChannel:
 			if !ok {
 				return worker.PrematureExit, fmt.Errorf("input mailbox channel closed")
 			}

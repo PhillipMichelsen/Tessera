@@ -29,10 +29,15 @@ func NewDispatcher() *Dispatcher {
 
 // CreateMailbox registers a worker's mailbox with its message handler.
 // It creates a new mailbox and spawns a processing goroutine.
-func (d *Dispatcher) CreateMailbox(mailboxUUID uuid.UUID, bufferSize int) {
+func (d *Dispatcher) CreateMailbox(mailboxUUID uuid.UUID, bufferSize int) (<-chan any, error) {
+	if d.mailboxes[mailboxUUID] != nil {
+		return nil, fmt.Errorf("mailbox %v already exists", mailboxUUID)
+	}
+
 	mailbox := make(chan any, bufferSize)
 
 	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.mailboxes[mailboxUUID] = mailbox
 	if d.pushCounts == nil {
 		d.pushCounts = make(map[uuid.UUID]*int64)
@@ -40,15 +45,8 @@ func (d *Dispatcher) CreateMailbox(mailboxUUID uuid.UUID, bufferSize int) {
 
 	d.pushCounts[mailboxUUID] = new(int64)
 	d.wg.Add(1)
-	d.mu.Unlock()
-}
 
-func (d *Dispatcher) GetMailboxChannel(mailboxUUID uuid.UUID) (<-chan any, bool) {
-	d.mu.RLock()
-	mailbox, exists := d.mailboxes[mailboxUUID]
-	d.mu.RUnlock()
-
-	return mailbox, exists
+	return mailbox, nil
 }
 
 // RemoveMailbox unregisters a worker's mailbox.

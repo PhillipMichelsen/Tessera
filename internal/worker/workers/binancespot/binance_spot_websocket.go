@@ -99,6 +99,7 @@ func (w *BinanceSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, ser
 
 			// In case of a subscription response, continue.
 			if len(msg.Data) == 0 {
+				fmt.Printf("Received subscription response: %s\n", message)
 				continue
 			}
 

@@ -26,7 +26,7 @@ func main() {
 	// Create a new node.
 	inst := node.NewNode(workerFactory)
 
-	err := inst.DeployFromYAML("cmd/node/deployment_test.yaml")
+	err := inst.StartDeployment("cmd/node/deployment_test.yaml")
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to deploy workers from YAML")
 	}

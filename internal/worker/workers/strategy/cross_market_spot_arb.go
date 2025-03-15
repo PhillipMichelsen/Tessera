@@ -34,20 +34,16 @@ func (w *CrossMarketSpotArbitrageStrategyWorker) Run(ctx context.Context, rawCon
 	}
 
 	// Create mailboxes for each market.
-	services.CreateMailbox(config.Market1BookTickerMailboxUUID, config.MailboxBuffers)
-	services.CreateMailbox(config.Market2BookTickerMailboxUUID, config.MailboxBuffers)
-	// Ensure removal of mailboxes on exit.
+	market1Channel, err := services.CreateMailbox(config.Market1BookTickerMailboxUUID, config.MailboxBuffers)
 	defer services.RemoveMailbox(config.Market1BookTickerMailboxUUID)
-	defer services.RemoveMailbox(config.Market2BookTickerMailboxUUID)
-
-	// Get the mailbox channels.
-	market1Channel, ok := services.GetMailboxChannel(config.Market1BookTickerMailboxUUID)
-	if !ok {
-		return worker.RuntimeErrorExit, fmt.Errorf("failed to get market 1 mailbox channel")
+	if err != nil {
+		return worker.RuntimeErrorExit, fmt.Errorf("failed to create market 1 mailbox: %w", err)
 	}
-	market2Channel, ok := services.GetMailboxChannel(config.Market2BookTickerMailboxUUID)
-	if !ok {
-		return worker.RuntimeErrorExit, fmt.Errorf("failed to get market 2 mailbox channel")
+
+	market2Channel, err := services.CreateMailbox(config.Market2BookTickerMailboxUUID, config.MailboxBuffers)
+	defer services.RemoveMailbox(config.Market2BookTickerMailboxUUID)
+	if err != nil {
+		return worker.RuntimeErrorExit, fmt.Errorf("failed to create market 2 mailbox: %w", err)
 	}
 
 	// Main loop: listen for updates from both channels.

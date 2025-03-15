@@ -5,7 +5,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// ExitCode represents the exit status of a worker.
+// ExitCode represents the exit status of a worker. It is used to communicate the reason for the worker's termination to the node.
 type ExitCode int
 
 const (
@@ -18,8 +18,7 @@ const (
 // Services defines the services (interface) that a worker can use to interact with the system.
 type Services interface {
 	SendMessage(destinationMailboxUUID uuid.UUID, message Message, block bool) error
-	CreateMailbox(mailboxUUID uuid.UUID, bufferSize int)
-	GetMailboxChannel(mailboxUUID uuid.UUID) (<-chan any, bool)
+	CreateMailbox(mailboxUUID uuid.UUID, bufferSize int) (<-chan any, error)
 	RemoveMailbox(mailboxUUID uuid.UUID)
 }
 
@@ -29,6 +28,7 @@ type Message struct {
 	Payload interface{}
 }
 
+// Worker interface. Every worker that wants to be deployed by the node must implement this interface.
 type Worker interface {
 	Run(ctx context.Context, rawConfig any, services Services) (ExitCode, error)
 }

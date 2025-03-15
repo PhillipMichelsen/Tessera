@@ -1,6 +1,0 @@
-syntax = "proto3";
-package node;
-option go_package = "./proto";
-
-import "google/protobuf/timestamp.proto";
-

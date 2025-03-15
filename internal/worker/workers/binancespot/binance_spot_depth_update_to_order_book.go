@@ -31,12 +31,11 @@ func (w *BinanceSpotDepthUpdateToOrderBookWorker) Run(ctx context.Context, rawCo
 		return worker.RuntimeErrorExit, fmt.Errorf("failed to parse raw config: %w", err)
 	}
 
-	services.CreateMailbox(config.InputMailboxUUID, config.InputMailboxBuffer)
-	inputChannel, ok := services.GetMailboxChannel(config.InputMailboxUUID)
-	if !ok {
-		return worker.RuntimeErrorExit, fmt.Errorf("failed to get input mailbox channel")
-	}
+	inputChannel, err := services.CreateMailbox(config.InputMailboxUUID, config.InputMailboxBuffer)
 	defer services.RemoveMailbox(config.InputMailboxUUID)
+	if err != nil {
+		return worker.RuntimeErrorExit, fmt.Errorf("failed to create input mailbox: %w", err)
+	}
 
 	for {
 		select {

@@ -26,30 +26,28 @@ type WorkerContainer struct {
 	worker     worker.Worker
 	workerType string
 	status     WorkerStatus
+	services   WorkerServices
 	cancelFunc context.CancelFunc
 	done       chan struct{}
 }
 
 type WorkerFactory interface {
-	InstantiateWorker(workerType string, workerUUID uuid.UUID) (worker.Worker, error)
+	InstantiateWorker(workerType string) (worker.Worker, error)
 }
-
-// Assert that Node implements worker.Services.
-var _ worker.Services = (*Node)(nil)
 
 // Node represents the node which holds and manages workers.
 type Node struct {
-	dispatcher *Dispatcher
-
+	dispatcher    *Dispatcher
 	workerFactory WorkerFactory
+	workers       map[uuid.UUID]*WorkerContainer
 
-	workers map[uuid.UUID]*WorkerContainer
+	deployment *DeploymentConfig // TODO: Make use of this field. Add deployment termination.
 
 	mu sync.Mutex
 }
 
 // NewNode initializes a new Node instance.
-func NewNode(workerFactory *worker.Factory) *Node {
+func NewNode(workerFactory WorkerFactory) *Node {
 	return &Node{
 		dispatcher:    NewDispatcher(),
 		workerFactory: workerFactory,
@@ -57,7 +55,7 @@ func NewNode(workerFactory *worker.Factory) *Node {
 	}
 }
 
-func (n *Node) DeployFromYAML(filePath string) error {
+func (n *Node) StartDeployment(filePath string) error {
 	// Load the deployment configuration.
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -68,15 +66,8 @@ func (n *Node) DeployFromYAML(filePath string) error {
 		return fmt.Errorf("failed to unmarshal deployment config: %w", err)
 	}
 
-	// Stop all workers defined in the deployment configuration.
-	for uuidStr := range config.Workers {
-		workerUUID := uuid.MustParse(uuidStr)
-		if active, _ := n.IsWorkerActive(workerUUID); active {
-			if err := n.StopWorker(workerUUID); err != nil {
-				return fmt.Errorf("failed to stop worker %s: %w", uuidStr, err)
-			}
-		}
-	}
+	// TODO: Stop existing workers.
+	// Loop through workers, stop them if they are active.
 
 	// Ensure every worker in the config is registered.
 	// (If a worker already exists, we leave it registered.)
@@ -86,7 +77,7 @@ func (n *Node) DeployFromYAML(filePath string) error {
 		_, exists := n.workers[workerUUID]
 		n.mu.Unlock()
 		if !exists {
-			if err := n.CreateWorker(wd.Type, workerUUID); err != nil {
+			if err := n.createWorker(wd.Type, workerUUID); err != nil {
 				return fmt.Errorf("failed to create worker %s: %w", uuidStr, err)
 			}
 		}
@@ -103,7 +94,7 @@ func (n *Node) DeployFromYAML(filePath string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal config for worker %s: %w", uuidStr, err)
 		}
-		if err := n.StartWorker(workerUUID, configBytes); err != nil {
+		if err := n.startWorker(workerUUID, configBytes); err != nil {
 			return fmt.Errorf("failed to start worker %s: %w", uuidStr, err)
 		}
 	}
@@ -111,9 +102,14 @@ func (n *Node) DeployFromYAML(filePath string) error {
 	return nil
 }
 
-// CreateWorker instantiates and registers a new worker.
-func (n *Node) CreateWorker(workerType string, workerUUID uuid.UUID) error {
-	instantiatedWorker, err := n.workerFactory.InstantiateWorker(workerType, workerUUID)
+func (n *Node) StopDeployment() error {
+	// TODO: Stop all workers. IN THE ORDER THEY ARE STATED IN THE DEPLOYMENT CONFIG.
+	return nil
+}
+
+// createWorker instantiates and registers a new worker.
+func (n *Node) createWorker(workerType string, workerUUID uuid.UUID) error {
+	instantiatedWorker, err := n.workerFactory.InstantiateWorker(workerType)
 	if err != nil {
 		return fmt.Errorf("failed to instantiate worker: %v", err)
 	}
@@ -133,8 +129,8 @@ func (n *Node) CreateWorker(workerType string, workerUUID uuid.UUID) error {
 	return nil
 }
 
-// RemoveWorker de-registers a worker. It returns an error if the worker is active.
-func (n *Node) RemoveWorker(workerUUID uuid.UUID) error {
+// removeWorker de-registers a worker. It returns an error if the worker is active.
+func (n *Node) removeWorker(workerUUID uuid.UUID) error {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
@@ -150,8 +146,8 @@ func (n *Node) RemoveWorker(workerUUID uuid.UUID) error {
 	return nil
 }
 
-// StartWorker starts a worker using its configuration and node-provided services.
-func (n *Node) StartWorker(workerUUID uuid.UUID, rawConfig any) error {
+// startWorker starts a worker using its configuration and node-provided services.
+func (n *Node) startWorker(workerUUID uuid.UUID, rawConfig any) error {
 	n.mu.Lock()
 	wc, exists := n.workers[workerUUID]
 	if !exists || wc.status.isActive {
@@ -166,6 +162,7 @@ func (n *Node) StartWorker(workerUUID uuid.UUID, rawConfig any) error {
 	wc.status.lastStart = time.Now()
 	wc.status.error = nil
 	wc.status.exitCode = worker.NormalExit
+	wc.services = NewWorkerServices(n)
 	n.mu.Unlock()
 
 	go func() {
@@ -175,15 +172,15 @@ func (n *Node) StartWorker(workerUUID uuid.UUID, rawConfig any) error {
 			}
 		}()
 
-		exitCode, err := wc.worker.Run(ctx, rawConfig, n)
+		exitCode, err := wc.worker.Run(ctx, rawConfig, wc.services)
 		n.handleWorkerExit(workerUUID, exitCode, err)
 	}()
 
 	return nil
 }
 
-// StopWorker stops a running worker. Blocks until the worker exits.
-func (n *Node) StopWorker(workerUUID uuid.UUID) error {
+// stopWorker stops a running worker. Blocks until the worker exits.
+func (n *Node) stopWorker(workerUUID uuid.UUID) error {
 	n.mu.Lock()
 
 	wc, exists := n.workers[workerUUID]
@@ -205,49 +202,6 @@ func (n *Node) StopWorker(workerUUID uuid.UUID) error {
 	return nil
 }
 
-// IsWorkerActive checks if a worker is active.
-func (n *Node) IsWorkerActive(workerUUID uuid.UUID) (bool, error) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-
-	wc, exists := n.workers[workerUUID]
-	if !exists {
-		return false, fmt.Errorf("worker %s not registered", workerUUID)
-	}
-
-	return wc.status.isActive, nil
-}
-
-func (n *Node) CreateMailbox(mailboxUUID uuid.UUID, bufferSize int) {
-	n.dispatcher.CreateMailbox(mailboxUUID, bufferSize)
-}
-
-func (n *Node) GetMailboxChannel(mailboxUUID uuid.UUID) (<-chan any, bool) {
-	return n.dispatcher.GetMailboxChannel(mailboxUUID)
-}
-
-func (n *Node) RemoveMailbox(mailboxUUID uuid.UUID) {
-	n.dispatcher.RemoveMailbox(mailboxUUID)
-}
-
-func (n *Node) SendMessage(destinationMailboxUUID uuid.UUID, message worker.Message, block bool) error {
-	// Intra-node message case, can be directly pushed to mailbox.
-	if n.dispatcher.CheckMailboxExists(destinationMailboxUUID) {
-		if block {
-			return n.dispatcher.PushMessageBlocking(destinationMailboxUUID, message)
-		} else {
-			return n.dispatcher.PushMessage(destinationMailboxUUID, message)
-		}
-	}
-
-	// Inter-node message case, needs to be routed through the bridge.
-	// First, resolve the destination node. Done with the cluster discovery service.
-	// Then, bridge the message to the destination node with the bridge.
-	// TODO: Implement the above.
-
-	return fmt.Errorf("unimplemented non intra-node message routing to destination mailbox %s", destinationMailboxUUID)
-}
-
 // handleWorkerExit updates the status of a worker once it exits.
 func (n *Node) handleWorkerExit(workerUUID uuid.UUID, exitCode worker.ExitCode, err error) {
 	n.mu.Lock()
@@ -258,11 +212,14 @@ func (n *Node) handleWorkerExit(workerUUID uuid.UUID, exitCode worker.ExitCode, 
 		return
 	}
 
+	wc.services.cleanupMailboxes()
+
 	wc.status.isActive = false
 	wc.status.exitCode = exitCode
 	wc.status.error = err
 	wc.status.lastExit = time.Now()
 	wc.cancelFunc = nil
+	wc.services = WorkerServices{}
 	close(wc.done)
 
 	// TODO: Add logging here
