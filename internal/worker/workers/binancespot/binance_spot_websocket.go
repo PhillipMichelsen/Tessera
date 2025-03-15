@@ -46,7 +46,7 @@ func (w *BinanceSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, ser
 	}
 
 	// Build the websocket URL. (Assumes config.BaseURL is provided without the "wss://" prefix.)
-	u := url.URL{Scheme: "ws", Host: cfg.BaseURL, Path: "/stream"}
+	u := url.URL{Scheme: "wss", Host: cfg.BaseURL, Path: "/stream"}
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
 		return worker.RuntimeErrorExit, fmt.Errorf("failed to connect to Binance Spot WebSocket: %w", err)
@@ -95,6 +95,11 @@ func (w *BinanceSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, ser
 			var msg BinanceSpotWebsocketStreamMessage
 			if err := json.Unmarshal(message, &msg); err != nil {
 				return worker.RuntimeErrorExit, fmt.Errorf("failed to unmarshal message: %w", err)
+			}
+
+			// In case of a subscription response, continue.
+			if len(msg.Data) == 0 {
+				continue
 			}
 
 			serializedJSON := models.SerializedJSON{

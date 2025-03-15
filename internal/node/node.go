@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
+	"gopkg.in/yaml.v3"
+	"os"
 	"sync"
 	"time"
 )
@@ -55,13 +57,59 @@ func NewNode(workerFactory *worker.Factory) *Node {
 	}
 }
 
-// Start is a no-op for now. Will be used to start sub-systems within the node.
-func (n *Node) Start() {
-	go n.dispatcher.LogPushRates()
-}
+func (n *Node) DeployFromYAML(filePath string) error {
+	// Load the deployment configuration.
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to read deployment file: %w", err)
+	}
+	var config DeploymentConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return fmt.Errorf("failed to unmarshal deployment config: %w", err)
+	}
 
-// Stop is a no-op for now. Will be used to stop sub-systems within the node.
-func (n *Node) Stop() {}
+	// Stop all workers defined in the deployment configuration.
+	for uuidStr := range config.Workers {
+		workerUUID := uuid.MustParse(uuidStr)
+		if active, _ := n.IsWorkerActive(workerUUID); active {
+			if err := n.StopWorker(workerUUID); err != nil {
+				return fmt.Errorf("failed to stop worker %s: %w", uuidStr, err)
+			}
+		}
+	}
+
+	// Ensure every worker in the config is registered.
+	// (If a worker already exists, we leave it registered.)
+	for uuidStr, wd := range config.Workers {
+		workerUUID := uuid.MustParse(uuidStr)
+		n.mu.Lock()
+		_, exists := n.workers[workerUUID]
+		n.mu.Unlock()
+		if !exists {
+			if err := n.CreateWorker(wd.Type, workerUUID); err != nil {
+				return fmt.Errorf("failed to create worker %s: %w", uuidStr, err)
+			}
+		}
+	}
+
+	// Start workers in the specified start_order.
+	for _, uuidStr := range config.StartOrder {
+		wd, exists := config.Workers[uuidStr]
+		if !exists {
+			return fmt.Errorf("worker %s defined in start_order not found in workers map", uuidStr)
+		}
+		workerUUID := uuid.MustParse(uuidStr)
+		configBytes, err := yaml.Marshal(wd.Config)
+		if err != nil {
+			return fmt.Errorf("failed to marshal config for worker %s: %w", uuidStr, err)
+		}
+		if err := n.StartWorker(workerUUID, configBytes); err != nil {
+			return fmt.Errorf("failed to start worker %s: %w", uuidStr, err)
+		}
+	}
+
+	return nil
+}
 
 // CreateWorker instantiates and registers a new worker.
 func (n *Node) CreateWorker(workerType string, workerUUID uuid.UUID) error {
@@ -197,7 +245,7 @@ func (n *Node) SendMessage(destinationMailboxUUID uuid.UUID, message worker.Mess
 	// Then, bridge the message to the destination node with the bridge.
 	// TODO: Implement the above.
 
-	return fmt.Errorf("unimplemented non intra-node message routing")
+	return fmt.Errorf("unimplemented non intra-node message routing to destination mailbox %s", destinationMailboxUUID)
 }
 
 // handleWorkerExit updates the status of a worker once it exits.

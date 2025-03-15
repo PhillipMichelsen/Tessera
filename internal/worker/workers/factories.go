@@ -3,7 +3,9 @@ package workers
 import (
 	"AlgorithmicTraderDistributed/internal/worker"
 	binancespot "AlgorithmicTraderDistributed/internal/worker/workers/binancespot"
+	mexcspot "AlgorithmicTraderDistributed/internal/worker/workers/mexcspot"
 	standard "AlgorithmicTraderDistributed/internal/worker/workers/standard"
+	strategy "AlgorithmicTraderDistributed/internal/worker/workers/strategy"
 	"github.com/google/uuid"
 )
 
@@ -40,6 +42,28 @@ func NewPrebuiltBinanceSpotWorkersFactory() *worker.Factory {
 		return &binancespot.BinanceSpotDepthUpdateToOrderBookWorker{}
 	})
 	// Add more worker types here as needed.
+
+	return factory
+}
+
+func NewPrebuiltMEXCSpotWorkersFactory() *worker.Factory {
+	factory := worker.NewFactory()
+	factory.RegisterWorkerCreationFunction("MEXCSpotWebsocket", func(uuid uuid.UUID) worker.Worker {
+		return &mexcspot.MEXCSpotWebsocketWorker{}
+	})
+	factory.RegisterWorkerCreationFunction("MEXCSpotBookTickerToBookTicker", func(uuid uuid.UUID) worker.Worker {
+		return &mexcspot.MEXCSpotBookTickerToBookTickerWorker{}
+	})
+	// Add more worker types here as needed.
+
+	return factory
+}
+
+func NewStrategyWorkersFactory() *worker.Factory {
+	factory := worker.NewFactory()
+	factory.RegisterWorkerCreationFunction("CrossMarketSpotArbitrageStrategy", func(uuid uuid.UUID) worker.Worker {
+		return &strategy.CrossMarketSpotArbitrageStrategyWorker{}
+	})
 
 	return factory
 }

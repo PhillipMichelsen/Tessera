@@ -82,20 +82,26 @@ func (w *MEXCSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, servic
 		case err := <-errCh:
 			return worker.RuntimeErrorExit, fmt.Errorf("failed to read message: %w", err)
 		case message := <-msgCh:
-			if len(message) > 0 && message[0] == '{' && message[len(message)-1] == '}' {
+			// Catch the subscription response, which for some reason is sent as a JSON object.
+			if message[0] == '{' {
 				fmt.Printf("Received subscription response: %+v\n", string(message))
 				continue
 			}
 
-			// Otherwise, assume it's a protobuf message.
+			// Otherwise, assume it's a protobuf PushDataV3ApiWrapper message.
 			var msg protos.PushDataV3ApiWrapper
 			if err := proto.Unmarshal(message, &msg); err != nil {
 				return worker.RuntimeErrorExit, fmt.Errorf("failed to unmarshal protobuf message: %w", err)
 			}
 
-			if err := services.SendMessage(uuid.MustParse("00000000-0000-0000-0000-000000000002"), worker.Message{
-				Tag:     "test",
-				Payload: msg.Body,
+			output, ok := cfg.StreamsOutputMapping[msg.Channel]
+			if !ok {
+				return worker.RuntimeErrorExit, fmt.Errorf("destination mapping not found for channel: %s", msg.Channel)
+			}
+
+			if err := services.SendMessage(output.MailboxUUID, worker.Message{
+				Tag:     output.Tag,
+				Payload: &msg,
 			}, cfg.BlockingSend); err != nil {
 				return worker.RuntimeErrorExit, fmt.Errorf("failed to send message: %w", err)
 			}
