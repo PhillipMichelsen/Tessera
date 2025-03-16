@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"AlgorithmicTraderDistributed/internal/models"
-	"AlgorithmicTraderDistributed/internal/worker"
+	"Tessera/internal/models"
+	"Tessera/internal/worker"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"gopkg.in/yaml.v3"

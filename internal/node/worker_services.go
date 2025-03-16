@@ -1,7 +1,7 @@
 package node
 
 import (
-	"AlgorithmicTraderDistributed/internal/worker"
+	"Tessera/internal/worker"
 	"fmt"
 	"github.com/google/uuid"
 )

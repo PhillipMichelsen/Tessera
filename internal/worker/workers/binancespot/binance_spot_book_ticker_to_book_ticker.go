@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"AlgorithmicTraderDistributed/internal/models"
-	"AlgorithmicTraderDistributed/internal/worker"
+	"Tessera/internal/models"
+	"Tessera/internal/worker"
 
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"

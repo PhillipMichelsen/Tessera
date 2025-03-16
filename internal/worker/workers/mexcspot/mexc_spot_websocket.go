@@ -1,8 +1,8 @@
 package workers
 
 import (
-	protos "AlgorithmicTraderDistributed/internal/protos/mexc"
-	"AlgorithmicTraderDistributed/internal/worker"
+	protos "Tessera/internal/protos/mexc"
+	"Tessera/internal/worker"
 	"context"
 	"fmt"
 	"github.com/google/uuid"

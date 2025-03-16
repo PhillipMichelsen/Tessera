@@ -1,11 +1,11 @@
 package workers
 
 import (
-	"AlgorithmicTraderDistributed/internal/worker"
-	binancespot "AlgorithmicTraderDistributed/internal/worker/workers/binancespot"
-	mexcspot "AlgorithmicTraderDistributed/internal/worker/workers/mexcspot"
-	standard "AlgorithmicTraderDistributed/internal/worker/workers/standard"
-	strategy "AlgorithmicTraderDistributed/internal/worker/workers/strategy"
+	"Tessera/internal/worker"
+	binancespot "Tessera/internal/worker/workers/binancespot"
+	mexcspot "Tessera/internal/worker/workers/mexcspot"
+	standard "Tessera/internal/worker/workers/standard"
+	strategy "Tessera/internal/worker/workers/strategy"
 )
 
 func NewPrebuiltStandardWorkersFactory() *worker.Factory {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"AlgorithmicTraderDistributed/internal/worker"
+	"Tessera/internal/worker"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )

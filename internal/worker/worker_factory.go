@@ -14,7 +14,7 @@ func NewFactory() *Factory {
 	}
 }
 
-func CombineFactories(factories ...*Factory) *Factory {
+func AggregateFactories(factories ...*Factory) *Factory {
 	newFactory := NewFactory()
 	for _, factory := range factories {
 		for workerType, creationFunc := range factory.workerCreationFunctions {

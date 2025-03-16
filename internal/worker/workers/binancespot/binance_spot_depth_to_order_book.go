@@ -1,8 +1,8 @@
 package workers
 
 import (
-	"AlgorithmicTraderDistributed/internal/models"
-	"AlgorithmicTraderDistributed/internal/worker"
+	"Tessera/internal/models"
+	"Tessera/internal/worker"
 	"context"
 	"fmt"
 	"github.com/google/uuid"

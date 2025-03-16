@@ -1,7 +1,7 @@
 package workers
 
 import (
-	"AlgorithmicTraderDistributed/internal/worker"
+	"Tessera/internal/worker"
 	"context"
 	"fmt"
 	"github.com/google/uuid"
@@ -39,7 +39,7 @@ func (w *StandardOutputWorker) Run(ctx context.Context, rawConfig any, services 
 			return worker.NormalExit, nil
 		case msg := <-inputChannel:
 			// _ = msg
-			fmt.Printf("%+v\n", msg)
+			fmt.Printf("StandardOutputWorker: %v\n", msg)
 		}
 	}
 }

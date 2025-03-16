@@ -1,9 +1,9 @@
 package workers
 
 import (
-	"AlgorithmicTraderDistributed/internal/models"
-	protos "AlgorithmicTraderDistributed/internal/protos/mexc"
-	"AlgorithmicTraderDistributed/internal/worker"
+	"Tessera/internal/models"
+	protos "Tessera/internal/protos/mexc"
+	"Tessera/internal/worker"
 	"context"
 	"fmt"
 	"strconv"
