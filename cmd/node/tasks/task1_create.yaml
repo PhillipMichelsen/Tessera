@@ -1,0 +1,15 @@
+instructions:
+  - type: create_worker
+    args:
+      worker_type: "StandardOutput"
+      worker_uuid: "33333333-3333-3333-3333-333333333333"
+
+  - type: create_worker
+    args:
+      worker_type: "BinanceSpotBookTickerToBookTicker"
+      worker_uuid: "22222222-2222-2222-2222-222222222222"
+
+  - type: create_worker
+    args:
+      worker_type: "BinanceSpotWebsocket"
+      worker_uuid: "11111111-1111-1111-1111-111111111111"

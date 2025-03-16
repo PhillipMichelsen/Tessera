@@ -5,8 +5,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"gopkg.in/yaml.v3"
-	"os"
 	"sync"
 	"time"
 )
@@ -40,10 +38,7 @@ type Node struct {
 	dispatcher    *Dispatcher
 	workerFactory WorkerFactory
 	workers       map[uuid.UUID]*WorkerContainer
-
-	deployment *DeploymentConfig // TODO: Make use of this field. Add deployment termination.
-
-	mu sync.Mutex
+	mu            sync.Mutex
 }
 
 // NewNode initializes a new Node instance.
@@ -55,55 +50,54 @@ func NewNode(workerFactory WorkerFactory) *Node {
 	}
 }
 
-func (n *Node) StartDeployment(filePath string) error {
-	// Load the deployment configuration.
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to read deployment file: %w", err)
-	}
-	var config DeploymentConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return fmt.Errorf("failed to unmarshal deployment config: %w", err)
-	}
-
-	// TODO: Stop existing workers.
-	// Loop through workers, stop them if they are active.
-
-	// Ensure every worker in the config is registered.
-	// (If a worker already exists, we leave it registered.)
-	for uuidStr, wd := range config.Workers {
-		workerUUID := uuid.MustParse(uuidStr)
-		n.mu.Lock()
-		_, exists := n.workers[workerUUID]
-		n.mu.Unlock()
-		if !exists {
-			if err := n.createWorker(wd.Type, workerUUID); err != nil {
-				return fmt.Errorf("failed to create worker %s: %w", uuidStr, err)
+func (n *Node) ProcessTask(task Task) error {
+	for _, instruction := range task.Instructions {
+		switch instruction.Type {
+		case "create_worker":
+			args, ok := instruction.Args.(CreateWorkerInstructionArgs)
+			if !ok {
+				return fmt.Errorf("failed to decode create_worker args")
 			}
+
+			if err := n.createWorker(args.WorkerType, args.WorkerUUID); err != nil {
+				return fmt.Errorf("error creating worker: %v", err)
+			}
+
+		case "start_worker":
+			args, ok := instruction.Args.(StartWorkerInstructionArgs)
+			if !ok {
+				return fmt.Errorf("failed to decode start_worker args")
+			}
+
+			if err := n.startWorker(args.WorkerUUID, args.WorkerRawConfig); err != nil {
+				return fmt.Errorf("error starting worker: %v", err)
+			}
+
+		case "remove_worker":
+			args, ok := instruction.Args.(RemoveWorkerInstructionArgs)
+			if !ok {
+				return fmt.Errorf("failed to decode remove_worker args")
+			}
+
+			if err := n.removeWorker(args.WorkerUUID); err != nil {
+				return fmt.Errorf("error removing worker: %v", err)
+			}
+
+		case "stop_worker":
+			args, ok := instruction.Args.(StopWorkerInstructionArgs)
+			if !ok {
+				return fmt.Errorf("failed to decode stop_worker args")
+			}
+
+			if err := n.stopWorker(args.WorkerUUID); err != nil {
+				return fmt.Errorf("error stopping worker: %v", err)
+			}
+
+		default:
+			return fmt.Errorf("unknown instruction: %s", instruction.Type)
 		}
 	}
 
-	// Start workers in the specified start_order.
-	for _, uuidStr := range config.StartOrder {
-		wd, exists := config.Workers[uuidStr]
-		if !exists {
-			return fmt.Errorf("worker %s defined in start_order not found in workers map", uuidStr)
-		}
-		workerUUID := uuid.MustParse(uuidStr)
-		configBytes, err := yaml.Marshal(wd.Config)
-		if err != nil {
-			return fmt.Errorf("failed to marshal config for worker %s: %w", uuidStr, err)
-		}
-		if err := n.startWorker(workerUUID, configBytes); err != nil {
-			return fmt.Errorf("failed to start worker %s: %w", uuidStr, err)
-		}
-	}
-
-	return nil
-}
-
-func (n *Node) StopDeployment() error {
-	// TODO: Stop all workers. IN THE ORDER THEY ARE STATED IN THE DEPLOYMENT CONFIG.
 	return nil
 }
 
