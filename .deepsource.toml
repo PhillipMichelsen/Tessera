@@ -4,4 +4,4 @@ version = 1
 name = "go"
 
   [analyzers.meta]
-  import_root = "Tessera"
+  import_root = "github.com/PhillipMichelsen/Tessera"
