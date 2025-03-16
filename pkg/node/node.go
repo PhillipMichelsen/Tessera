@@ -3,7 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
-	"github.com/PhillipMichelsen/Tessera/internal/worker"
+	"github.com/PhillipMichelsen/Tessera/pkg/worker"
 	"github.com/google/uuid"
 	"sync"
 	"time"

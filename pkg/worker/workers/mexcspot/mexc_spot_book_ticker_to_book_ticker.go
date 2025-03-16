@@ -3,9 +3,9 @@ package workers
 import (
 	"context"
 	"fmt"
-	"github.com/PhillipMichelsen/Tessera/internal/models"
-	protos "github.com/PhillipMichelsen/Tessera/internal/protos/mexc"
-	"github.com/PhillipMichelsen/Tessera/internal/worker"
+	"github.com/PhillipMichelsen/Tessera/pkg/models"
+	protos "github.com/PhillipMichelsen/Tessera/pkg/protos/mexc"
+	"github.com/PhillipMichelsen/Tessera/pkg/worker"
 	"strconv"
 	"time"
 

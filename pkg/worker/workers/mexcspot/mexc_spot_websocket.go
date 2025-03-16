@@ -2,24 +2,18 @@ package workers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/url"
-
-	"github.com/PhillipMichelsen/Tessera/internal/models"
-	"github.com/PhillipMichelsen/Tessera/internal/worker"
+	protos "github.com/PhillipMichelsen/Tessera/pkg/protos/mexc"
+	"github.com/PhillipMichelsen/Tessera/pkg/worker"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
+	"net/url"
 )
 
-type BinanceSpotWebsocketStreamMessage struct {
-	Stream string          `json:"stream"`
-	Data   json.RawMessage `json:"data"`
-}
-
-// BinanceSpotWebsocketWorkerConfig defines the YAML configuration.
-type BinanceSpotWebsocketWorkerConfig struct {
+// MEXCSpotWebsocketWorkerConfig defines the YAML configuration.
+type MEXCSpotWebsocketWorkerConfig struct {
 	BaseURL              string `yaml:"base_url"`
 	StreamsOutputMapping map[string]struct {
 		MailboxUUID uuid.UUID `yaml:"mailbox_uuid"`
@@ -28,12 +22,10 @@ type BinanceSpotWebsocketWorkerConfig struct {
 	BlockingSend bool `yaml:"blocking_send"`
 }
 
-// BinanceSpotWebsocketWorker implements the worker.Worker interface.
-type BinanceSpotWebsocketWorker struct{}
+// MEXCSpotWebsocketWorker implements the worker.Worker interface.
+type MEXCSpotWebsocketWorker struct{}
 
-// Run reads the YAML config, connects to the Binance websocket, subscribes to the streams,
-// and routes each received message to the configured destination mailboxes.
-func (w *BinanceSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, services worker.Services) (worker.ExitCode, error) {
+func (w *MEXCSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, services worker.Services) (worker.ExitCode, error) {
 	cfg, err := w.parseRawConfig(rawConfig)
 	if err != nil {
 		return worker.RuntimeErrorExit, fmt.Errorf("failed to parse raw config: %w", err)
@@ -46,10 +38,10 @@ func (w *BinanceSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, ser
 	}
 
 	// Build the websocket URL. (Assumes config.BaseURL is provided without the "wss://" prefix.)
-	u := url.URL{Scheme: "wss", Host: cfg.BaseURL, Path: "/stream"}
+	u := url.URL{Scheme: "wss", Host: cfg.BaseURL, Path: "/ws"}
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		return worker.RuntimeErrorExit, fmt.Errorf("failed to connect to Binance Spot WebSocket: %w", err)
+		return worker.RuntimeErrorExit, fmt.Errorf("failed to connect to MEXC Spot websocket: %w", err)
 	}
 	// Ensure connection is closed on exit.
 	defer func(conn *websocket.Conn) {
@@ -59,11 +51,9 @@ func (w *BinanceSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, ser
 		}
 	}(conn)
 
-	// Subscribe to streams.
 	subscribeMsg := map[string]interface{}{
-		"method": "SUBSCRIBE",
+		"method": "SUBSCRIPTION",
 		"params": streamNames,
-		"id":     1,
 	}
 	if err = conn.WriteJSON(subscribeMsg); err != nil {
 		return worker.RuntimeErrorExit, fmt.Errorf("failed to send subscription message: %w", err)
@@ -92,52 +82,51 @@ func (w *BinanceSpotWebsocketWorker) Run(ctx context.Context, rawConfig any, ser
 		case err := <-errCh:
 			return worker.RuntimeErrorExit, fmt.Errorf("failed to read message: %w", err)
 		case message := <-msgCh:
-			var msg BinanceSpotWebsocketStreamMessage
-			if err := json.Unmarshal(message, &msg); err != nil {
-				return worker.RuntimeErrorExit, fmt.Errorf("failed to unmarshal message: %w", err)
-			}
-
-			// In case of a subscription response, continue.
-			if len(msg.Data) == 0 {
-				fmt.Printf("Received subscription response: %s\n", message)
+			// Catch the subscription response, which for some reason is sent as a JSON object.
+			if message[0] == '{' {
+				fmt.Printf("Received subscription response: %+v\n", string(message))
 				continue
 			}
 
-			serializedJSON := models.SerializedJSON{
-				JSON: string(msg.Data),
+			// Otherwise, assume it's a protobuf PushDataV3ApiWrapper message.
+			var msg protos.PushDataV3ApiWrapper
+			if err := proto.Unmarshal(message, &msg); err != nil {
+				return worker.RuntimeErrorExit, fmt.Errorf("failed to unmarshal protobuf message: %w", err)
 			}
 
-			output, ok := cfg.StreamsOutputMapping[msg.Stream]
+			output, ok := cfg.StreamsOutputMapping[msg.Channel]
 			if !ok {
-				return worker.RuntimeErrorExit, fmt.Errorf("destination mapping not found for stream: %s", msg.Stream)
+				return worker.RuntimeErrorExit, fmt.Errorf("destination mapping not found for channel: %s", msg.Channel)
 			}
 
 			if err := services.SendMessage(output.MailboxUUID, worker.Message{
 				Tag:     output.Tag,
-				Payload: serializedJSON,
+				Payload: &msg,
 			}, cfg.BlockingSend); err != nil {
 				return worker.RuntimeErrorExit, fmt.Errorf("failed to send message: %w", err)
 			}
 		}
 	}
+
 }
 
-func (w *BinanceSpotWebsocketWorker) parseRawConfig(rawConfig any) (BinanceSpotWebsocketWorkerConfig, error) {
+// parseRawConfig converts the raw YAML configuration into MEXCSpotWebsocketWorkerConfig.
+func (w *MEXCSpotWebsocketWorker) parseRawConfig(rawConfig any) (MEXCSpotWebsocketWorkerConfig, error) {
 	configBytes, ok := rawConfig.([]byte)
 	if !ok {
-		return BinanceSpotWebsocketWorkerConfig{}, fmt.Errorf("config is not in the expected []byte format")
+		return MEXCSpotWebsocketWorkerConfig{}, fmt.Errorf("config is not in the expected []byte format")
 	}
 
-	var config BinanceSpotWebsocketWorkerConfig
+	var config MEXCSpotWebsocketWorkerConfig
 	if err := yaml.Unmarshal(configBytes, &config); err != nil {
-		return BinanceSpotWebsocketWorkerConfig{}, fmt.Errorf("failed to unmarshal configuration: %w", err)
+		return MEXCSpotWebsocketWorkerConfig{}, fmt.Errorf("failed to unmarshal configuration: %w", err)
 	}
 
 	if config.BaseURL == "" {
-		return BinanceSpotWebsocketWorkerConfig{}, fmt.Errorf("base_url is required in configuration")
+		return MEXCSpotWebsocketWorkerConfig{}, fmt.Errorf("base_url is required in configuration")
 	}
 	if len(config.StreamsOutputMapping) == 0 {
-		return BinanceSpotWebsocketWorkerConfig{}, fmt.Errorf("at least one stream must be provided in configuration")
+		return MEXCSpotWebsocketWorkerConfig{}, fmt.Errorf("at least one stream must be provided in configuration")
 	}
 
 	return config, nil
