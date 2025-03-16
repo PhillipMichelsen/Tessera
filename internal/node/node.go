@@ -1,9 +1,9 @@
 package node
 
 import (
-	"Tessera/internal/worker"
 	"context"
 	"fmt"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
 	"github.com/google/uuid"
 	"sync"
 	"time"

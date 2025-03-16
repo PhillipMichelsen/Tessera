@@ -1,4 +1,4 @@
-module Tessera
+module github.com/PhillipMichelsen/Tessera
 
 go 1.24.1
 

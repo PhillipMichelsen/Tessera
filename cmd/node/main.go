@@ -1,10 +1,10 @@
 package main
 
 import (
-	"Tessera/internal/node"
-	"Tessera/internal/worker"
-	"Tessera/internal/worker/workers"
 	_ "embed"
+	"github.com/PhillipMichelsen/Tessera/internal/node"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
+	"github.com/PhillipMichelsen/Tessera/internal/worker/workers"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"os"

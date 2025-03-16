@@ -1,11 +1,11 @@
 package workers
 
 import (
-	"Tessera/internal/worker"
-	binancespot "Tessera/internal/worker/workers/binancespot"
-	mexcspot "Tessera/internal/worker/workers/mexcspot"
-	standard "Tessera/internal/worker/workers/standard"
-	strategy "Tessera/internal/worker/workers/strategy"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
+	binancespot "github.com/PhillipMichelsen/Tessera/internal/worker/workers/binancespot"
+	mexcspot "github.com/PhillipMichelsen/Tessera/internal/worker/workers/mexcspot"
+	standard "github.com/PhillipMichelsen/Tessera/internal/worker/workers/standard"
+	strategy "github.com/PhillipMichelsen/Tessera/internal/worker/workers/strategy"
 )
 
 func NewPrebuiltStandardWorkersFactory() *worker.Factory {

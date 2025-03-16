@@ -1,10 +1,10 @@
 package workers
 
 import (
-	"Tessera/internal/models"
-	"Tessera/internal/worker"
 	"context"
 	"fmt"
+	"github.com/PhillipMichelsen/Tessera/internal/models"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"sort"

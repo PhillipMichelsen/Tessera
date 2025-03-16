@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"Tessera/internal/worker"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )

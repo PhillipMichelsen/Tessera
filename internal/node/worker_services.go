@@ -1,8 +1,8 @@
 package node
 
 import (
-	"Tessera/internal/worker"
 	"fmt"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
 	"github.com/google/uuid"
 )
 

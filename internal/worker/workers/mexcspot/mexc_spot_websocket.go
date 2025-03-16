@@ -1,10 +1,10 @@
 package workers
 
 import (
-	protos "Tessera/internal/protos/mexc"
-	"Tessera/internal/worker"
 	"context"
 	"fmt"
+	protos "github.com/PhillipMichelsen/Tessera/internal/protos/mexc"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"

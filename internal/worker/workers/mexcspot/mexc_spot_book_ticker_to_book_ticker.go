@@ -1,11 +1,11 @@
 package workers
 
 import (
-	"Tessera/internal/models"
-	protos "Tessera/internal/protos/mexc"
-	"Tessera/internal/worker"
 	"context"
 	"fmt"
+	"github.com/PhillipMichelsen/Tessera/internal/models"
+	protos "github.com/PhillipMichelsen/Tessera/internal/protos/mexc"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
 	"strconv"
 	"time"
 
