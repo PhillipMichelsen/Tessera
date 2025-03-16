@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/PhillipMichelsen/Tessera/pkg/models"
-	"github.com/PhillipMichelsen/Tessera/pkg/worker"
+	"github.com/PhillipMichelsen/Tessera/internal/models"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
 
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"

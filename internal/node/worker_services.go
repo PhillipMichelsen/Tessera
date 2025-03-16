@@ -2,7 +2,7 @@ package node
 
 import (
 	"fmt"
-	"github.com/PhillipMichelsen/Tessera/pkg/worker"
+	"github.com/PhillipMichelsen/Tessera/internal/worker"
 	"github.com/google/uuid"
 )
 
