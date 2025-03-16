@@ -220,6 +220,9 @@ func (n *Node) handleWorkerExit(workerUUID uuid.UUID, exitCode worker.ExitCode, 
 	wc.services = WorkerServices{}
 	close(wc.done)
 
-	// TODO: Add logging here
 	fmt.Printf("Worker %s exited with code %d and error: %v\n", workerUUID, exitCode, err)
+
+	// TODO: Implement propagation of worker exit codes to orchestrator.
+	// If worker exit code is not NormalExit, propagate to orchestrator.
+	// If worker exit code is NormalExit, do not propagate to orchestrator.
 }
