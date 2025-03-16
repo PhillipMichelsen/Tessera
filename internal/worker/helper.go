@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-func forwardChannelToMessageReceiver(ctx context.Context, inputChannel chan any, receiver func(any)) {
+func _(ctx context.Context, inputChannel chan any, receiver func(any)) {
 	for {
 		select {
 		case <-ctx.Done():

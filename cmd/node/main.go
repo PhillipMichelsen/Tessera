@@ -49,8 +49,8 @@ func main() {
 	for _, yamlBytes := range tasksYamlBytes {
 		log.Info().Msg("Processing new task")
 
-		// Parse the task from YAML.
-		task, err := node.ParseTaskFromYaml(yamlBytes)
+		// Parse the task from the embedded YAML.
+		task, err := nodeInst.ParseTask(yamlBytes)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to parse task from embedded YAML")
 			continue

@@ -35,7 +35,7 @@ type StopWorkerInstructionArgs struct {
 	WorkerUUID uuid.UUID `yaml:"worker_uuid"`
 }
 
-func ParseTaskFromYaml(yamlBytes []byte) (Task, error) {
+func parseTaskFromYaml(yamlBytes []byte) (Task, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(yamlBytes, &root); err != nil {
 		return Task{}, fmt.Errorf("failed to unmarshal yaml: %w", err)

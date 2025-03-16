@@ -101,6 +101,10 @@ func (n *Node) ProcessTask(task Task) error {
 	return nil
 }
 
+func (n *Node) ParseTask(yamlBytes []byte) (Task, error) {
+	return parseTaskFromYaml(yamlBytes)
+}
+
 // createWorker instantiates and registers a new worker.
 func (n *Node) createWorker(workerType string, workerUUID uuid.UUID) error {
 	instantiatedWorker, err := n.workerFactory.InstantiateWorker(workerType)
